@@ -1,0 +1,5 @@
+@reference "../../styles/variables.css";
+
+.app-layout {
+  @apply flex flex-col gap-4 p-5 h-full overflow-y-auto;
+}

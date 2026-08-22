@@ -1,0 +1,13 @@
+@reference "../../styles/variables.css";
+
+.status-badge {
+  @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium;
+}
+
+.status-badge.on {
+  @apply bg-bg-success text-success;
+}
+
+.status-badge.off {
+  @apply bg-bg-error text-error;
+}
