@@ -1,4 +1,4 @@
-@import "./variables.css";
+@import "./theme.css";
 
 * {
   box-sizing: border-box;
@@ -9,20 +9,19 @@ body,
 #root {
   width: 100%;
   height: 100%;
-  margin: 0;
+  margin: var(--space-0);
 }
 
 body {
-  @apply bg-base text-text;
-  font-family:
-    "Poppins",
-    -apple-system,
-    system-ui,
-    sans-serif;
+  background: var(--color-background-app);
+  color: var(--color-text);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   user-select: none;
 }
 
 main {
-  @apply flex flex-col flex-1;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }

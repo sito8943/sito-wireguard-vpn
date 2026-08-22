@@ -1,0 +1,57 @@
+.TunnelCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  border: var(--border-width-default) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-card);
+  padding: var(--space-4);
+}
+
+.TunnelCard .head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.TunnelCard .name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-0);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.TunnelCard .meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-0);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.TunnelCard .meta div {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.TunnelCard .meta dt {
+  font-weight: var(--font-weight-medium);
+}
+
+.TunnelCard .meta dd {
+  margin: var(--space-0);
+}
+
+.TunnelCard .actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.TunnelCard .toggle {
+  flex: 1;
+}

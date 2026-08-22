@@ -16,23 +16,43 @@ Pensado para gente no técnica: importar un `.conf`, apretar **Conectar**, poner
 pnpm install
 pnpm tauri dev     # app de escritorio
 pnpm tauri build   # genera .app/.dmg en src-tauri/target/release/bundle/
+pnpm lint          # eslint
+pnpm format:check  # prettier
 ```
 
 ## Arquitectura
 
-Sigue `../ARCHITECTURE_RULES.md`: `TunnelManager` (lib/managers) encapsula los `invoke` de Tauri, `VpnProvider` lo expone vía contexto + hook `useVpn`, las vistas solo componen.
+Sigue `../sito-file-browser/ARCHITECTURE_RULES.md` (feature-sliced, CSS plano con tokens):
 
-**Excepción documentada (§8 routing):** app de una sola vista; no hay react-router. Las rutas centralizadas viven en `src/lib/routes.ts` para cuando existan más pantallas.
+```txt
+src/
+  app/                      # Composition root: routes.ts, layout/AppLayout
+  features/tunnels/         # Todo el dominio VPN
+    Tunnels.tsx             # Vista principal
+    components/             # StatusBadge, TunnelCard, ImportDialog, DepsBanner
+    providers/VpnProvider/  # Contexto + hook useVpn
+    managers/TunnelManager/ # Encapsula los invoke de Tauri
+    models/tunnel.ts
+    constants.ts / utils.ts
+  lang/                     # i18n (es)
+  styles/                   # theme.css (tokens :root) + CSS por componente
+    components/*.css
+    views/*.css
+```
+
+- CSS plano, sin Tailwind; todos los valores dimensionales/colores salen de tokens `--*` en `styles/theme.css` (§12).
+- Sin literales mágicos: comandos Tauri en `TUNNEL_COMMAND`, variantes de UI vía `BUTTON_*` de `@sito/ui`, thresholds en `constants.ts` (§11).
+- **Excepción documentada (§8 routing):** app de una sola vista; no hay react-router. Las rutas viven en `src/app/routes.ts` para cuando existan más pantallas.
 
 ## Comandos Rust (src-tauri)
 
-| Comando | Qué hace |
-| --- | --- |
-| `check_deps` | Busca `wg-quick` en rutas de Homebrew |
-| `read_conf_file` | Lee un `.conf` elegido con el file picker |
-| `list_tunnels` | Lista confs guardados + estado conectado |
-| `save_tunnel` / `delete_tunnel` | CRUD de confs (valida `[Interface]`/`PrivateKey`, nombre ≤15 chars) |
-| `connect_tunnel` / `disconnect_tunnel` | `wg-quick up/down` con privilegios de admin |
+| Comando                                | Qué hace                                                      |
+| -------------------------------------- | ------------------------------------------------------------- |
+| `check_deps`                           | Busca `wg-quick` en rutas de Homebrew                         |
+| `read_conf_file`                       | Lee un `.conf` elegido con el file picker                     |
+| `list_tunnels`                         | Lista confs guardados + estado conectado                      |
+| `save_tunnel` / `delete_tunnel`        | CRUD de confs (valida `[Interface]`/`PrivateKey`, nombre ≤15) |
+| `connect_tunnel` / `disconnect_tunnel` | `wg-quick up/down` con privilegios de admin                   |
 
 ## Seguridad
 

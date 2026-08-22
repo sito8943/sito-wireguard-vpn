@@ -1,0 +1,68 @@
+.Tunnels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.Tunnels.loading {
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+
+.Tunnels .header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.Tunnels .title {
+  margin: var(--space-0);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+.Tunnels .error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-radius: var(--radius-lg);
+  background: var(--color-error-surface);
+  color: var(--color-error);
+  padding: var(--space-3);
+}
+
+.Tunnels .error p {
+  margin: var(--space-0);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.Tunnels .empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  border: var(--border-width-default) dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+  text-align: center;
+}
+
+.Tunnels .empty-title {
+  margin: var(--space-0);
+  font-weight: var(--font-weight-medium);
+}
+
+.Tunnels .empty-hint {
+  margin: var(--space-0);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.Tunnels .list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
