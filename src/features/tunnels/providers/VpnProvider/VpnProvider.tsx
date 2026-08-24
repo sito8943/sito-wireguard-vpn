@@ -7,8 +7,11 @@ import {
   useState,
 } from "react";
 
-import { TunnelInfo } from "../../models/tunnel";
-import { SaveTunnelInput, TunnelManager } from "../../managers/TunnelManager";
+import { TunnelInfo } from "@/features/tunnels/models/tunnel";
+import {
+  SaveTunnelInput,
+  TunnelManager,
+} from "@/features/tunnels/managers/TunnelManager";
 import { VpnContext } from "./context";
 import { STATUS_POLL_INTERVAL_MS } from "./constants";
 import { VpnContextValue } from "./types";

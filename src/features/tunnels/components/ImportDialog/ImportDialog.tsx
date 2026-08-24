@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { Button, BUTTON_VARIANTS, Dialog, DialogActions } from "@sito/ui";
+import { Button, Dialog, DialogActions } from "@sito/ui";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faFolderOpen, faXmark } from "@fortawesome/free-solid-svg-icons";
 
-import { t } from "../../../../lang";
-import { TUNNEL_NAME_MAX_LENGTH } from "../../constants";
+import { BUTTON_VARIANT } from "@/shared/constants";
+import { t } from "@/lang";
+import { TUNNEL_NAME_MAX_LENGTH } from "@/features/tunnels/constants";
 import { IMPORT_CONTENT_ROWS } from "./constants";
 import { ImportDialogPropsType } from "./types";
 
-import "../../../../styles/components/ImportDialog.css";
+import "@/styles/components/ImportDialog.css";
 
 export function ImportDialog({
   open,
@@ -46,7 +47,7 @@ export function ImportDialog({
       className="ImportDialog"
     >
       <div className="body">
-        <Button variant={BUTTON_VARIANTS.OUTLINED} onClick={pickFile}>
+        <Button variant={BUTTON_VARIANT.OUTLINED} onClick={pickFile}>
           <FontAwesomeIcon icon={faFolderOpen} /> {t("importPickFile")}
         </Button>
         <label className="field">

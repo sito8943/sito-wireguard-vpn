@@ -1,5 +1,5 @@
-import { TunnelInfo } from "../../models/tunnel";
-import { SaveTunnelInput } from "../../managers/TunnelManager";
+import { TunnelInfo } from "@/features/tunnels/models/tunnel";
+import { SaveTunnelInput } from "@/features/tunnels/managers/TunnelManager";
 
 export interface VpnContextValue {
   tunnels: TunnelInfo[];

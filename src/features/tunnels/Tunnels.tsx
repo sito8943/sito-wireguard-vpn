@@ -1,11 +1,4 @@
-import {
-  Button,
-  BUTTON_COLOR_VARIANTS,
-  BUTTON_VARIANTS,
-  IconButton,
-  Spinner,
-  useDialog,
-} from "@sito/ui";
+import { Button, IconButton, useDialog } from "@sito/ui";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faXmark } from "@fortawesome/free-solid-svg-icons";
@@ -14,11 +7,13 @@ import { useVpn } from "./providers/VpnProvider";
 import { TunnelCard } from "./components/TunnelCard";
 import { ImportDialog, PickedConfFile } from "./components/ImportDialog";
 import { DepsBanner } from "./components/DepsBanner";
-import { t } from "../../lang";
+import { Spinner } from "@/shared/components/elements/Spinner";
+import { BUTTON_COLOR, BUTTON_VARIANT } from "@/shared/constants";
+import { t } from "@/lang";
 import { CONF_EXTENSION } from "./constants";
 import { fileStem } from "./utils";
 
-import "../../styles/views/Tunnels.css";
+import "@/styles/views/Tunnels.css";
 
 export function Tunnels() {
   const {
@@ -62,7 +57,7 @@ export function Tunnels() {
         <IconButton
           aria-label={t("addTunnel")}
           icon={<FontAwesomeIcon icon={faPlus} />}
-          color={BUTTON_COLOR_VARIANTS.PRIMARY}
+          color={BUTTON_COLOR.PRIMARY}
           onClick={importDialog.handleOpen}
         />
       </header>
@@ -77,8 +72,8 @@ export function Tunnels() {
           <IconButton
             aria-label={t("cancel")}
             icon={<FontAwesomeIcon icon={faXmark} />}
-            variant={BUTTON_VARIANTS.TEXT}
-            color={BUTTON_COLOR_VARIANTS.ERROR}
+            variant={BUTTON_VARIANT.TEXT}
+            color={BUTTON_COLOR.ERROR}
             onClick={clearError}
           />
         </aside>
@@ -89,8 +84,8 @@ export function Tunnels() {
           <p className="empty-title">{t("emptyTitle")}</p>
           <p className="empty-hint">{t("emptyHint")}</p>
           <Button
-            color={BUTTON_COLOR_VARIANTS.PRIMARY}
-            variant={BUTTON_VARIANTS.SUBMIT}
+            color={BUTTON_COLOR.PRIMARY}
+            variant={BUTTON_VARIANT.SUBMIT}
             onClick={importDialog.handleOpen}
           >
             <FontAwesomeIcon icon={faPlus} /> {t("addTunnel")}

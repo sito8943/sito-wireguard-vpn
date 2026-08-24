@@ -1,4 +1,4 @@
-import { THEME, Theme } from "../../constants";
+import { THEME, Theme } from "@/shared/constants";
 import { PREFERS_DARK_QUERY } from "./constants";
 
 export function getSystemTheme(): Theme {

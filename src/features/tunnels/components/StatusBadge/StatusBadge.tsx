@@ -4,10 +4,10 @@ import {
   faCircleExclamation,
 } from "@fortawesome/free-solid-svg-icons";
 
-import { t } from "../../../../lang";
+import { t } from "@/lang";
 import { StatusBadgePropsType } from "./types";
 
-import "../../../../styles/components/StatusBadge.css";
+import "@/styles/components/StatusBadge.css";
 
 export function StatusBadge({ connected }: StatusBadgePropsType) {
   return (

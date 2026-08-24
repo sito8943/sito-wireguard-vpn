@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 
-import { THEME } from "../../constants";
+import { THEME } from "@/shared/constants";
 import { ThemeContext } from "./context";
 import { PREFERS_DARK_QUERY, THEME_DATA_ATTRIBUTE } from "./constants";
 import { getSystemTheme } from "./utils";

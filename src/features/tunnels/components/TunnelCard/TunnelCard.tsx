@@ -1,18 +1,13 @@
-import {
-  Button,
-  BUTTON_COLOR_VARIANTS,
-  BUTTON_SIZES,
-  BUTTON_VARIANTS,
-  IconButton,
-} from "@sito/ui";
+import { Button, IconButton } from "@sito/ui";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTrash, faShieldHalved } from "@fortawesome/free-solid-svg-icons";
 
-import { StatusBadge } from "../StatusBadge";
-import { t } from "../../../../lang";
+import { StatusBadge } from "@/features/tunnels/components/StatusBadge";
+import { BUTTON_COLOR, BUTTON_SIZE, BUTTON_VARIANT } from "@/shared/constants";
+import { t } from "@/lang";
 import { TunnelCardPropsType } from "./types";
 
-import "../../../../styles/components/TunnelCard.css";
+import "@/styles/components/TunnelCard.css";
 
 export function TunnelCard({
   tunnel,
@@ -49,13 +44,9 @@ export function TunnelCard({
       </dl>
       <div className="actions">
         <Button
-          color={
-            tunnel.connected
-              ? BUTTON_COLOR_VARIANTS.ERROR
-              : BUTTON_COLOR_VARIANTS.SUCCESS
-          }
-          variant={BUTTON_VARIANTS.SUBMIT}
-          size={BUTTON_SIZES.LG}
+          color={tunnel.connected ? BUTTON_COLOR.ERROR : BUTTON_COLOR.SUCCESS}
+          variant={BUTTON_VARIANT.SUBMIT}
+          size={BUTTON_SIZE.LG}
           loading={busy}
           loadingLabel={t("working")}
           onClick={toggle}
@@ -66,8 +57,8 @@ export function TunnelCard({
         <IconButton
           aria-label={t("deleteTunnel")}
           icon={<FontAwesomeIcon icon={faTrash} />}
-          color={BUTTON_COLOR_VARIANTS.ERROR}
-          variant={BUTTON_VARIANTS.TEXT}
+          color={BUTTON_COLOR.ERROR}
+          variant={BUTTON_VARIANT.TEXT}
           disabled={busy || tunnel.connected}
           onClick={() => onDelete(tunnel.name)}
         />

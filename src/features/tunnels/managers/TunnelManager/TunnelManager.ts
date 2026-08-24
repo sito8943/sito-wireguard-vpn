@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import { TunnelInfo } from "../../models/tunnel";
+import { TunnelInfo } from "@/features/tunnels/models/tunnel";
 import { TUNNEL_COMMAND } from "./constants";
 import { SaveTunnelInput } from "./types";
 

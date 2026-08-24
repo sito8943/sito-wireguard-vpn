@@ -14,6 +14,9 @@
   --radius-pill: 999px;
 
   --border-width-default: 1px;
+  --border-width-spinner: 3px;
+
+  --size-spinner: 48px;
 
   --font-sans: "Poppins", -apple-system, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, monospace;

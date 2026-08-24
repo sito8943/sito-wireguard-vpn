@@ -1,4 +1,4 @@
-import { TunnelInfo } from "../../models/tunnel";
+import { TunnelInfo } from "@/features/tunnels/models/tunnel";
 
 export interface TunnelCardPropsType {
   tunnel: TunnelInfo;
