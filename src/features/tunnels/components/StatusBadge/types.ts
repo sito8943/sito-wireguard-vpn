@@ -1,3 +1,5 @@
+import { TunnelStatus } from "@/features/tunnels/constants";
+
 export interface StatusBadgePropsType {
-  connected: boolean;
+  status: TunnelStatus;
 }

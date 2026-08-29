@@ -46,6 +46,14 @@
   margin: var(--space-0);
 }
 
+.TunnelCard .traffic {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .TunnelCard .actions {
   display: flex;
   align-items: center;

@@ -1,8 +1,14 @@
 import { Button, IconButton } from "@sito/ui";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faTrash, faShieldHalved } from "@fortawesome/free-solid-svg-icons";
+import {
+  faTrash,
+  faShieldHalved,
+  faArrowDown,
+  faArrowUp,
+} from "@fortawesome/free-solid-svg-icons";
 
 import { StatusBadge } from "@/features/tunnels/components/StatusBadge";
+import { getTunnelStatus, formatRate } from "@/features/tunnels/utils";
 import { BUTTON_COLOR, BUTTON_SIZE, BUTTON_VARIANT } from "@/shared/constants";
 import { t } from "@/lang";
 import { TunnelCardPropsType } from "./types";
@@ -11,6 +17,7 @@ import "@/styles/components/TunnelCard.css";
 
 export function TunnelCard({
   tunnel,
+  rate,
   busy,
   onConnect,
   onDisconnect,
@@ -26,7 +33,7 @@ export function TunnelCard({
           <FontAwesomeIcon icon={faShieldHalved} />
           {tunnel.name}
         </h2>
-        <StatusBadge connected={tunnel.connected} />
+        <StatusBadge status={getTunnelStatus(tunnel)} />
       </div>
       <dl className="meta">
         {tunnel.address ? (
@@ -42,6 +49,16 @@ export function TunnelCard({
           </div>
         ) : null}
       </dl>
+      {tunnel.connected && rate ? (
+        <div className="traffic">
+          <span aria-label={t("download")}>
+            <FontAwesomeIcon icon={faArrowDown} /> {formatRate(rate.downBps)}
+          </span>
+          <span aria-label={t("upload")}>
+            <FontAwesomeIcon icon={faArrowUp} /> {formatRate(rate.upBps)}
+          </span>
+        </div>
+      ) : null}
       <div className="actions">
         <Button
           color={tunnel.connected ? BUTTON_COLOR.ERROR : BUTTON_COLOR.SUCCESS}

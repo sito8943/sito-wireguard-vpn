@@ -18,6 +18,7 @@ import "@/styles/views/Tunnels.css";
 export function Tunnels() {
   const {
     tunnels,
+    rates,
     wgQuickPath,
     loading,
     busyTunnel,
@@ -97,6 +98,7 @@ export function Tunnels() {
             <TunnelCard
               key={tunnel.name}
               tunnel={tunnel}
+              rate={rates[tunnel.name] ?? null}
               busy={busyTunnel === tunnel.name}
               onConnect={connect}
               onDisconnect={disconnect}

@@ -1,7 +1,8 @@
-import { TunnelInfo } from "@/features/tunnels/models/tunnel";
+import { TunnelInfo, TunnelRate } from "@/features/tunnels/models/tunnel";
 
 export interface TunnelCardPropsType {
   tunnel: TunnelInfo;
+  rate: TunnelRate | null;
   busy: boolean;
   onConnect: (name: string) => void;
   onDisconnect: (name: string) => void;

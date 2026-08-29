@@ -7,18 +7,20 @@ import {
   useState,
 } from "react";
 
-import { TunnelInfo } from "@/features/tunnels/models/tunnel";
+import { TunnelInfo, TunnelRate } from "@/features/tunnels/models/tunnel";
 import {
   SaveTunnelInput,
   TunnelManager,
 } from "@/features/tunnels/managers/TunnelManager";
 import { VpnContext } from "./context";
 import { STATUS_POLL_INTERVAL_MS } from "./constants";
-import { VpnContextValue } from "./types";
+import { TrafficSample, VpnContextValue } from "./types";
 
 export function VpnProvider({ children }: { children: ReactNode }) {
   const managerRef = useRef(new TunnelManager());
+  const samplesRef = useRef<Record<string, TrafficSample>>({});
   const [tunnels, setTunnels] = useState<TunnelInfo[]>([]);
+  const [rates, setRates] = useState<Record<string, TunnelRate>>({});
   const [wgQuickPath, setWgQuickPath] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyTunnel, setBusyTunnel] = useState<string | null>(null);
@@ -26,7 +28,37 @@ export function VpnProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      setTunnels(await managerRef.current.list());
+      const list = await managerRef.current.list();
+      const now = Date.now();
+      const nextRates: Record<string, TunnelRate> = {};
+      const nextSamples: Record<string, TrafficSample> = {};
+      for (const tunnel of list) {
+        if (
+          !tunnel.connected ||
+          tunnel.rxBytes === null ||
+          tunnel.txBytes === null
+        ) {
+          continue;
+        }
+        const prev = samplesRef.current[tunnel.name];
+        if (prev) {
+          const seconds = (now - prev.at) / 1000;
+          if (seconds > 0) {
+            nextRates[tunnel.name] = {
+              downBps: Math.max(0, (tunnel.rxBytes - prev.rx) / seconds),
+              upBps: Math.max(0, (tunnel.txBytes - prev.tx) / seconds),
+            };
+          }
+        }
+        nextSamples[tunnel.name] = {
+          rx: tunnel.rxBytes,
+          tx: tunnel.txBytes,
+          at: now,
+        };
+      }
+      samplesRef.current = nextSamples;
+      setRates(nextRates);
+      setTunnels(list);
     } catch (e) {
       setError(String(e));
     }
@@ -99,6 +131,7 @@ export function VpnProvider({ children }: { children: ReactNode }) {
   const value = useMemo<VpnContextValue>(
     () => ({
       tunnels,
+      rates,
       wgQuickPath,
       loading,
       busyTunnel,
@@ -114,6 +147,7 @@ export function VpnProvider({ children }: { children: ReactNode }) {
     }),
     [
       tunnels,
+      rates,
       wgQuickPath,
       loading,
       busyTunnel,

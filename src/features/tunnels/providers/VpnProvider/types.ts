@@ -1,8 +1,15 @@
-import { TunnelInfo } from "@/features/tunnels/models/tunnel";
+import { TunnelInfo, TunnelRate } from "@/features/tunnels/models/tunnel";
 import { SaveTunnelInput } from "@/features/tunnels/managers/TunnelManager";
+
+export interface TrafficSample {
+  rx: number;
+  tx: number;
+  at: number;
+}
 
 export interface VpnContextValue {
   tunnels: TunnelInfo[];
+  rates: Record<string, TunnelRate>;
   wgQuickPath: string | null;
   loading: boolean;
   busyTunnel: string | null;
