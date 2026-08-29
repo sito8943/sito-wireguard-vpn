@@ -249,42 +249,63 @@ async fn delete_tunnel(app: tauri::AppHandle, name: String) -> Result<(), String
     .await
 }
 
+fn connect_impl(app: &tauri::AppHandle, name: &str) -> Result<TunnelInfo, String> {
+    let name = sanitize_name(name)?;
+    if find_wg_quick().is_none() {
+        return Err("missing-deps".into());
+    }
+    let conf = tunnels_dir(app)?.join(format!("{name}.conf"));
+    let conf_path = conf.to_string_lossy().to_string();
+    // wg-quick no tolera espacios en la ruta del conf: se copia a /etc/wireguard
+    let command = format!(
+        "mkdir -p /etc/wireguard && cp '{conf_path}' '/etc/wireguard/{name}.conf' && chmod 600 '/etc/wireguard/{name}.conf' && env PATH={TOOL_PATH} wg-quick up '{name}'"
+    );
+    run_admin_shell(&command)?;
+    tunnel_info(app, &name)
+}
+
+fn disconnect_impl(app: &tauri::AppHandle, name: &str) -> Result<TunnelInfo, String> {
+    let name = sanitize_name(name)?;
+    let command = format!("env PATH={TOOL_PATH} wg-quick down '{name}'");
+    run_admin_shell(&command)?;
+    tunnel_info(app, &name)
+}
+
+/// Baja todos los túneles activos con un único prompt de contraseña.
+fn disconnect_all_impl(app: &tauri::AppHandle) -> Result<(), String> {
+    let names: Vec<String> = tunnel_states(app)
+        .into_iter()
+        .filter(|(_, connected)| *connected)
+        .map(|(name, _)| name)
+        .collect();
+    if names.is_empty() {
+        return Ok(());
+    }
+    let command = names
+        .iter()
+        .map(|n| format!("env PATH={TOOL_PATH} wg-quick down '{n}'"))
+        .collect::<Vec<_>>()
+        .join("; ");
+    run_admin_shell(&command)?;
+    Ok(())
+}
+
 #[tauri::command]
 async fn connect_tunnel(app: tauri::AppHandle, name: String) -> Result<TunnelInfo, String> {
-    blocking(move || {
-        let name = sanitize_name(&name)?;
-        if find_wg_quick().is_none() {
-            return Err("missing-deps".into());
-        }
-        let conf = tunnels_dir(&app)?.join(format!("{name}.conf"));
-        let conf_path = conf.to_string_lossy().to_string();
-        // wg-quick no tolera espacios en la ruta del conf: se copia a /etc/wireguard
-        let command = format!(
-            "mkdir -p /etc/wireguard && cp '{conf_path}' '/etc/wireguard/{name}.conf' && chmod 600 '/etc/wireguard/{name}.conf' && env PATH={TOOL_PATH} wg-quick up '{name}'"
-        );
-        run_admin_shell(&command)?;
-        tunnel_info(&app, &name)
-    })
-    .await
+    blocking(move || connect_impl(&app, &name)).await
 }
 
 #[tauri::command]
 async fn disconnect_tunnel(app: tauri::AppHandle, name: String) -> Result<TunnelInfo, String> {
-    blocking(move || {
-        let name = sanitize_name(&name)?;
-        let command = format!("env PATH={TOOL_PATH} wg-quick down '{name}'");
-        run_admin_shell(&command)?;
-        tunnel_info(&app, &name)
-    })
-    .await
+    blocking(move || disconnect_impl(&app, &name)).await
 }
 
 // ---- System tray -------------------------------------------------------
 
 const TRAY_ID: &str = "main-tray";
 const TRAY_TICK_SECS: u64 = 3;
-const TRAY_STATUS_DISCONNECTED: &str = "VPN desconectada";
-const TRAY_STATUS_RECONNECTING: &str = "Reconectando…";
+const TRAY_TUNNEL_PREFIX: &str = "tunnel:";
+const TRAY_MENU_DISCONNECT_ALL: &str = "Desconectar todo";
 const TRAY_MENU_SHOW: &str = "Mostrar";
 const TRAY_MENU_QUIT: &str = "Salir";
 
@@ -323,12 +344,89 @@ fn active_tunnel(app: &tauri::AppHandle) -> Option<(String, u64, u64, bool)> {
     None
 }
 
-fn spawn_tray_updater(app: &tauri::AppHandle, status_item: tauri::menu::MenuItem<tauri::Wry>) {
+/// (nombre, conectado) de cada túnel — sin pings, barato para el menú.
+fn tunnel_states(app: &tauri::AppHandle) -> Vec<(String, bool)> {
+    let Ok(dir) = tunnels_dir(app) else {
+        return Vec::new();
+    };
+    let Ok(entries) = fs::read_dir(&dir) else {
+        return Vec::new();
+    };
+    let mut states: Vec<(String, bool)> = entries
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry.path();
+            if !path.extension().is_some_and(|e| e == "conf") {
+                return None;
+            }
+            let name = path.file_stem()?.to_str()?.to_string();
+            let content = fs::read_to_string(&path).ok()?;
+            let connected = parse_conf_field(&content, "Address")
+                .as_deref()
+                .and_then(interface_for_address)
+                .is_some();
+            Some((name, connected))
+        })
+        .collect();
+    states.sort();
+    states
+}
+
+fn build_tray_menu(
+    app: &tauri::AppHandle,
+    states: &[(String, bool)],
+) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
+
+    let menu = Menu::new(app)?;
+    for (name, connected) in states {
+        // Check = online. Click en activo → desconecta; en inactivo → conecta.
+        let item = CheckMenuItem::with_id(
+            app,
+            format!("{TRAY_TUNNEL_PREFIX}{name}"),
+            name,
+            true,
+            *connected,
+            None::<&str>,
+        )?;
+        menu.append(&item)?;
+    }
+    if !states.is_empty() {
+        menu.append(&PredefinedMenuItem::separator(app)?)?;
+    }
+    menu.append(&MenuItem::with_id(
+        app,
+        "disconnect-all",
+        TRAY_MENU_DISCONNECT_ALL,
+        states.iter().any(|(_, connected)| *connected),
+        None::<&str>,
+    )?)?;
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        "show",
+        TRAY_MENU_SHOW,
+        true,
+        None::<&str>,
+    )?)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        "quit",
+        TRAY_MENU_QUIT,
+        true,
+        None::<&str>,
+    )?)?;
+    Ok(menu)
+}
+
+fn spawn_tray_updater(app: &tauri::AppHandle) {
     let handle = app.clone();
     std::thread::spawn(move || {
         let mut prev: Option<(String, u64, u64)> = None;
+        let mut prev_states: Vec<(String, bool)> = Vec::new();
         loop {
-            let (title, status) = match active_tunnel(&handle) {
+            let states = tunnel_states(&handle);
+            let title = match active_tunnel(&handle) {
                 Some((name, rx, tx, reachable)) => {
                     let rates = match &prev {
                         Some((pname, prx, ptx)) if *pname == name => {
@@ -338,71 +436,91 @@ fn spawn_tray_updater(app: &tauri::AppHandle, status_item: tauri::menu::MenuItem
                         }
                         _ => "↓… ↑…".to_string(),
                     };
-                    prev = Some((name.clone(), rx, tx));
+                    prev = Some((name, rx, tx));
                     if reachable {
-                        (rates, format!("Conectado a {name}"))
+                        rates
                     } else {
-                        ("VPN ⟳".to_string(), TRAY_STATUS_RECONNECTING.to_string())
+                        "VPN ⟳".to_string()
                     }
                 }
                 None => {
                     prev = None;
-                    (String::new(), TRAY_STATUS_DISCONNECTED.to_string())
+                    String::new()
                 }
             };
+            let states_changed = states != prev_states;
+            prev_states = states.clone();
             let h = handle.clone();
-            let item = status_item.clone();
             let _ = handle.run_on_main_thread(move || {
-                if let Some(tray) = h.tray_by_id(TRAY_ID) {
-                    let _ = tray.set_title(if title.is_empty() {
-                        None
-                    } else {
-                        Some(title.as_str())
-                    });
+                let Some(tray) = h.tray_by_id(TRAY_ID) else {
+                    return;
+                };
+                let _ = tray.set_title(if title.is_empty() {
+                    None
+                } else {
+                    Some(title.as_str())
+                });
+                if states_changed {
+                    if let Ok(menu) = build_tray_menu(&h, &states) {
+                        let _ = tray.set_menu(Some(menu));
+                    }
                 }
-                let _ = item.set_text(&status);
             });
             std::thread::sleep(std::time::Duration::from_secs(TRAY_TICK_SECS));
         }
     });
 }
 
+fn on_tray_menu_event(app: &tauri::AppHandle, id: &str) {
+    match id {
+        "quit" => app.exit(0),
+        "show" => {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }
+        "disconnect-all" => {
+            let handle = app.clone();
+            std::thread::spawn(move || {
+                let _ = disconnect_all_impl(&handle);
+            });
+        }
+        other => {
+            if let Some(name) = other.strip_prefix(TRAY_TUNNEL_PREFIX) {
+                let name = name.to_string();
+                let handle = app.clone();
+                std::thread::spawn(move || {
+                    match tunnel_info(&handle, &name) {
+                        Ok(info) if info.connected => {
+                            let _ = disconnect_impl(&handle, &name);
+                        }
+                        Ok(_) => {
+                            let _ = connect_impl(&handle, &name);
+                        }
+                        Err(_) => {}
+                    };
+                });
+            }
+        }
+    }
+}
+
 fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
-    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
     use tauri::tray::TrayIconBuilder;
 
-    let status_item =
-        MenuItem::with_id(app, "status", TRAY_STATUS_DISCONNECTED, false, None::<&str>)?;
-    let show_item = MenuItem::with_id(app, "show", TRAY_MENU_SHOW, true, None::<&str>)?;
-    let quit_item = MenuItem::with_id(app, "quit", TRAY_MENU_QUIT, true, None::<&str>)?;
-    let menu = Menu::with_items(
-        app,
-        &[
-            &status_item,
-            &PredefinedMenuItem::separator(app)?,
-            &show_item,
-            &quit_item,
-        ],
-    )?;
+    let handle = app.handle();
+    let menu = build_tray_menu(handle, &tunnel_states(handle))?;
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(app.default_window_icon().expect("app icon").clone())
         .icon_as_template(true)
         .menu(&menu)
         .show_menu_on_left_click(true)
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "quit" => app.exit(0),
-            "show" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
-            }
-            _ => {}
-        })
+        .on_menu_event(|app, event| on_tray_menu_event(app, event.id.as_ref()))
         .build(app)?;
 
-    spawn_tray_updater(app.handle(), status_item);
+    spawn_tray_updater(handle);
     Ok(())
 }
 
