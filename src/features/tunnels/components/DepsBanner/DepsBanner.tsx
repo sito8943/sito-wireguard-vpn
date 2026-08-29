@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Button } from "@sito/ui";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -9,21 +8,16 @@ import {
 
 import { BUTTON_SIZE, BUTTON_VARIANT } from "@/shared/constants";
 import { t } from "@/lang";
-import { BREW_INSTALL_COMMAND, COPY_FEEDBACK_MS } from "./constants";
+import { BREW_INSTALL_COMMAND } from "./constants";
+import { useCopyFeedback } from "./useCopyFeedback";
 import { DepsBannerPropsType } from "./types";
 
 import "@/styles/components/DepsBanner.css";
 
 export function DepsBanner({ visible, onRecheck }: DepsBannerPropsType) {
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyFeedback();
 
   if (!visible) return null;
-
-  const copy = async () => {
-    await navigator.clipboard.writeText(BREW_INSTALL_COMMAND);
-    setCopied(true);
-    setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
-  };
 
   return (
     <aside className="DepsBanner">
@@ -35,7 +29,7 @@ export function DepsBanner({ visible, onRecheck }: DepsBannerPropsType) {
         <Button
           size={BUTTON_SIZE.SM}
           variant={BUTTON_VARIANT.SUBMIT}
-          onClick={copy}
+          onClick={() => copy(BREW_INSTALL_COMMAND)}
         >
           <FontAwesomeIcon icon={faCopy} />{" "}
           {copied ? t("depsCopied") : t("depsCopy")}
