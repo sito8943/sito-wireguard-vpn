@@ -1,21 +1,11 @@
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faCheckCircle,
-  faCircleExclamation,
-  faRotate,
-} from "@fortawesome/free-solid-svg-icons";
 
 import { TUNNEL_STATUS } from "@/features/tunnels/constants";
 import { t } from "@/lang";
+import { STATUS_ICON } from "./constants";
 import { StatusBadgePropsType } from "./types";
 
 import "@/styles/components/StatusBadge.css";
-
-const STATUS_ICON = {
-  [TUNNEL_STATUS.CONNECTED]: faCheckCircle,
-  [TUNNEL_STATUS.RECONNECTING]: faRotate,
-  [TUNNEL_STATUS.DISCONNECTED]: faCircleExclamation,
-} as const;
 
 export function StatusBadge({ status }: StatusBadgePropsType) {
   return (

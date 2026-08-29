@@ -1,5 +1,12 @@
 import { TunnelInfo } from "./models/tunnel";
-import { CONF_FILE_SUFFIX, TUNNEL_STATUS, TunnelStatus } from "./constants";
+import {
+  BYTES_PER_KB,
+  BYTES_PER_MB,
+  CONF_FILE_SUFFIX,
+  RATE_DECIMALS,
+  TUNNEL_STATUS,
+  TunnelStatus,
+} from "./constants";
 
 export function fileStem(path: string): string {
   const base = path.split("/").pop() ?? path;
@@ -14,12 +21,9 @@ export function getTunnelStatus(tunnel: TunnelInfo): TunnelStatus {
   return TUNNEL_STATUS.CONNECTED;
 }
 
-const KB = 1024;
-const MB = KB * 1024;
-
 export function formatRate(bytesPerSec: number): string {
-  if (bytesPerSec >= MB) {
-    return `${(bytesPerSec / MB).toFixed(1)} MB/s`;
+  if (bytesPerSec >= BYTES_PER_MB) {
+    return `${(bytesPerSec / BYTES_PER_MB).toFixed(RATE_DECIMALS)} MB/s`;
   }
-  return `${Math.round(bytesPerSec / KB)} KB/s`;
+  return `${Math.round(bytesPerSec / BYTES_PER_KB)} KB/s`;
 }

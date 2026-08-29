@@ -13,7 +13,7 @@ import {
   TunnelManager,
 } from "@/features/tunnels/managers/TunnelManager";
 import { VpnContext } from "./context";
-import { STATUS_POLL_INTERVAL_MS } from "./constants";
+import { MS_PER_SECOND, STATUS_POLL_INTERVAL_MS } from "./constants";
 import { TrafficSample, VpnContextValue } from "./types";
 
 export function VpnProvider({ children }: { children: ReactNode }) {
@@ -42,7 +42,7 @@ export function VpnProvider({ children }: { children: ReactNode }) {
         }
         const prev = samplesRef.current[tunnel.name];
         if (prev) {
-          const seconds = (now - prev.at) / 1000;
+          const seconds = (now - prev.at) / MS_PER_SECOND;
           if (seconds > 0) {
             nextRates[tunnel.name] = {
               downBps: Math.max(0, (tunnel.rxBytes - prev.rx) / seconds),
