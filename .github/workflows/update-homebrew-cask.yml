@@ -8,7 +8,7 @@ name: Update Homebrew Cask
 #   1. The tap repo exists:  github.com/sito8943/homebrew-tap
 #   2. Add a repo secret TAP_GITHUB_TOKEN — a PAT (fine-grained or classic) with Contents:write on
 #      that tap repo. The default GITHUB_TOKEN cannot push to another repo.
-#   3. Users install with:  brew install --cask --no-quarantine sito8943/tap/sito-wireguard-vpn
+#   3. Users install with:  brew install --cask sito8943/tap/sito-wireguard-vpn
 on:
   release:
     types: [published]
@@ -111,10 +111,10 @@ jobs:
             ]
 
             caveats <<~CAVEATS
-              La app no está firmada. Si macOS bloquea el primer arranque, instala con:
-                brew install --cask --no-quarantine sito8943/tap/${CASK_NAME}
-              o quita la cuarentena a mano:
-                xattr -cr "/Applications/Sito WireGuard VPN.app"
+              La app no está firmada. Quita la cuarentena tras instalar para que macOS
+              no bloquee el primer arranque:
+                xattr -dr com.apple.quarantine "/Applications/Sito WireGuard VPN.app"
+              (o ábrela una vez con click derecho → Abrir)
             CAVEATS
           end
           EOF

@@ -14,10 +14,11 @@ Pensado para gente no técnica: importar un `.conf`, apretar **Conectar**, poner
 ### Opción A — Homebrew (recomendada)
 
 ```bash
-brew install --cask --no-quarantine sito8943/tap/sito-wireguard-vpn
+brew install --cask sito8943/tap/sito-wireguard-vpn
+xattr -dr com.apple.quarantine "/Applications/Sito WireGuard VPN.app"
 ```
 
-`--no-quarantine` es necesario porque la app **no está firmada** con un certificado de Apple; instala también `wireguard-tools` automáticamente como dependencia.
+El `xattr` es necesario porque la app **no está firmada** con un certificado de Apple (Homebrew 6 eliminó el flag `--no-quarantine`). El cask instala también `wireguard-tools` automáticamente como dependencia.
 
 ### Opción B — DMG desde Releases
 
