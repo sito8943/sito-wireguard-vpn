@@ -1,6 +1,6 @@
 [package]
 name = "sito-wireguard-vpn"
-version = "0.1.0"
+version = "0.2.0"
 description = "Cliente WireGuard plug and play para macOS"
 authors = ["sito8943"]
 edition = "2021"
