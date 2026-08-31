@@ -29,6 +29,8 @@ export class TunnelManager {
       input.name,
       input.content,
       input.previousName ?? null,
+      input.manageDns,
+      input.dns,
     );
   }
 
@@ -42,6 +44,15 @@ export class TunnelManager {
 
   disconnect(name: string): Promise<TunnelInfo> {
     return api.disconnectTunnel(name);
+  }
+
+  /** Servicio con el DNS cambiado por una sesión anterior, si quedó alguno. */
+  pendingDnsRestore(): Promise<string | null> {
+    return api.pendingDnsRestore();
+  }
+
+  restoreDns(): Promise<void> {
+    return api.restoreDns();
   }
 
   /** Baja `previousName` y sube `name` con el conf nuevo en un solo prompt. */

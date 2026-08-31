@@ -31,11 +31,15 @@ export const es = {
   confirmOverwriteText: (name: string) =>
     `Ya hay un túnel llamado «${name}». Su configuración se reemplazará.`,
   confirmOverwriteAction: "Reemplazar",
-  confirmDnsTitle: "Esta configuración fija el DNS",
-  confirmDnsText:
-    "En macOS, wg-quick falla al aplicar la línea DNS cuando el equipo tiene servicios de red inactivos (Thunderbolt Bridge, VPN de terceros) y deja el túnel sin levantar. Puedes guardarla sin esa línea.",
-  confirmDnsStrip: "Guardar sin DNS",
-  confirmDnsKeep: "Guardar igual",
+  manageDnsLabel: "Aplicar el DNS al conectar",
+  manageDnsHint:
+    "La app lo pone al conectar y lo devuelve a como estaba al desconectar. Sin esto, tu Mac usa el DNS de la red donde esté.",
+  manageDnsServers: "Servidores DNS (separados por comas)",
+  manageDnsIgnored: (servers: string) =>
+    `Esta configuración define ${servers}, pero no se aplicará mientras la casilla esté desmarcada.`,
+  dnsPendingText: (service: string) =>
+    `El DNS de «${service}» quedó cambiado por una conexión anterior.`,
+  dnsPendingAction: "Restaurar",
   ipLabel: "IP",
   endpointLabel: "Endpoint",
   emptyTitle: "Sin túneles",

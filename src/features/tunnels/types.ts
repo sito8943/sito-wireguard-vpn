@@ -6,4 +6,6 @@ export interface TunnelDraft {
   name: string;
   content: string;
   connected: boolean;
+  manageDns: boolean;
+  dns: string[];
 }

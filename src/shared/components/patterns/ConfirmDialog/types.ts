@@ -8,9 +8,6 @@ export interface ConfirmDialogPropsType {
   /** Color del botón de confirmación; error para acciones destructivas. */
   confirmColor?: ButtonColor;
   busy?: boolean;
-  /** Segunda salida afirmativa, junto al botón principal (p. ej. "Guardar igual"). */
-  extraText?: string;
-  onExtra?: () => void;
   onConfirm: () => void;
   onClose: () => void;
 }

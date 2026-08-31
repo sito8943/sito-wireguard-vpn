@@ -39,6 +39,27 @@
   overflow-wrap: anywhere;
 }
 
+.Tunnels .dns-pending {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-radius: var(--radius-lg);
+  background: var(--color-warning-surface);
+  color: var(--color-warning);
+  padding: var(--space-3);
+}
+
+.Tunnels .dns-pending p {
+  margin: var(--space-0);
+  font-size: var(--font-size-sm);
+}
+
+/* El label cabe en una línea; sin esto el botón se parte en dos. */
+.Tunnels .dns-pending button {
+  white-space: nowrap;
+}
+
 .Tunnels .empty {
   display: flex;
   flex-direction: column;

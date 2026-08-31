@@ -33,11 +33,15 @@ export function saveTunnel(
   name: string,
   content: string,
   previousName: string | null,
+  manageDns: boolean,
+  dns: string[],
 ): Promise<TunnelInfo> {
   return invoke<TunnelInfo>(TUNNEL_COMMAND.SAVE_TUNNEL, {
     name,
     content,
     previousName,
+    manageDns,
+    dns,
   });
 }
 
@@ -54,6 +58,16 @@ export function connectTunnel(name: string): Promise<TunnelInfo> {
 /** `wg-quick down` con privilegios de administrador. */
 export function disconnectTunnel(name: string): Promise<TunnelInfo> {
   return invoke<TunnelInfo>(TUNNEL_COMMAND.DISCONNECT_TUNNEL, { name });
+}
+
+/** Servicio de red cuyo DNS quedó cambiado sin restaurar, si lo hay. */
+export function pendingDnsRestore(): Promise<string | null> {
+  return invoke<string | null>(TUNNEL_COMMAND.PENDING_DNS_RESTORE);
+}
+
+/** Devuelve el DNS del sistema al valor guardado antes de conectar. */
+export function restoreDns(): Promise<void> {
+  return invoke<void>(TUNNEL_COMMAND.RESTORE_DNS);
 }
 
 /** Baja `previousName`, reinstala el conf y sube `name` en un solo prompt. */

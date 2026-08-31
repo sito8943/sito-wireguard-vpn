@@ -15,6 +15,8 @@ export interface VpnContextValue {
   busyTunnel: string | null;
   /** Mensaje ya traducido, listo para pintar. */
   error: string | null;
+  /** Servicio de red cuyo DNS quedó cambiado por una sesión anterior. */
+  pendingDnsService: string | null;
   refresh: () => Promise<void>;
   recheckDeps: () => Promise<void>;
   /** `false` si falló: el diálogo se queda abierto con lo que escribió el usuario. */
@@ -24,5 +26,6 @@ export interface VpnContextValue {
   removeTunnel: (name: string) => Promise<boolean>;
   connect: (name: string) => Promise<boolean>;
   disconnect: (name: string) => Promise<boolean>;
+  restoreDns: () => Promise<boolean>;
   clearError: () => void;
 }

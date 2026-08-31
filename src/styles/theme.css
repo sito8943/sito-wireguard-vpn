@@ -31,6 +31,8 @@
   --size-textarea-min: 160px;
   --size-dialog-width: 520px;
 
+  --opacity-disabled: 0.5;
+
   /* @sito/ui 0.3.3 usa este token en .sito-ui-dialog pero no lo define: sin él
      la regla width queda inválida y cada diálogo se ancha según su contenido. */
   --sito-ui-dialog-max-width: var(--size-dialog-width);

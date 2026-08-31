@@ -11,7 +11,7 @@ import { Button } from "@/shared/components/elements/Button";
 import { IconButton } from "@/shared/components/elements/IconButton";
 import { Spinner } from "@/shared/components/elements/Spinner";
 import { ConfirmDialog } from "@/shared/components/patterns/ConfirmDialog";
-import { BUTTON_COLOR, BUTTON_VARIANT } from "@/shared/constants";
+import { BUTTON_COLOR, BUTTON_SIZE, BUTTON_VARIANT } from "@/shared/constants";
 import { t } from "@/lang";
 import { TunnelInfo } from "@/shared/models";
 import { CONF_EXTENSION, EMPTY_DRAFT, TUNNEL_DIALOG_MODE } from "./constants";
@@ -28,6 +28,7 @@ export function Tunnels() {
     loading,
     busyTunnel,
     error,
+    pendingDnsService,
     recheckDeps,
     saveTunnel,
     readConfFile,
@@ -35,6 +36,7 @@ export function Tunnels() {
     removeTunnel,
     connect,
     disconnect,
+    restoreDns,
     clearError,
   } = useVpn();
   const [draft, setDraft] = useState<TunnelDraft | null>(null);
@@ -58,6 +60,8 @@ export function Tunnels() {
       name: tunnel.name,
       content,
       connected: tunnel.connected,
+      manageDns: tunnel.manageDns,
+      dns: tunnel.dns,
     });
   };
 
@@ -88,6 +92,19 @@ export function Tunnels() {
       </header>
 
       <DepsBanner visible={!wgQuickPath} onRecheck={recheckDeps} />
+
+      {pendingDnsService ? (
+        <aside className="dns-pending">
+          <p>{t("dnsPendingText", pendingDnsService)}</p>
+          <Button
+            size={BUTTON_SIZE.SM}
+            variant={BUTTON_VARIANT.SUBMIT}
+            onClick={restoreDns}
+          >
+            {t("dnsPendingAction")}
+          </Button>
+        </aside>
+      ) : null}
 
       {error ? (
         <aside className="error">

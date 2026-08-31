@@ -4,6 +4,8 @@ import type { TunnelDraft } from "./types";
 export const CONF_EXTENSION = "conf";
 // Clave del .conf que dispara set_dns en wg-quick (ver errorDnsSetupFailed)
 export const CONF_DNS_KEY = "dns";
+export const DNS_SEPARATOR = ",";
+export const DEFAULT_DNS = "1.1.1.1";
 export const CONF_KEY_SEPARATOR = "=";
 export const CONF_LINE_SEPARATOR = "\n";
 export const CONF_FILE_SUFFIX = `.${CONF_EXTENSION}`;
@@ -63,4 +65,6 @@ export const EMPTY_DRAFT: TunnelDraft = {
   name: "",
   content: "",
   connected: false,
+  manageDns: false,
+  dns: [],
 };

@@ -30,6 +30,9 @@ export function VpnProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [busyTunnel, setBusyTunnel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pendingDnsService, setPendingDnsService] = useState<string | null>(
+    null,
+  );
 
   const refresh = useCallback(async () => {
     try {
@@ -65,6 +68,9 @@ export function VpnProvider({ children }: { children: ReactNode }) {
       tunnelsRef.current = list;
       setRates(nextRates);
       setTunnels(list);
+      // Un DNS sin restaurar solo se puede arreglar cuando ya no queda túnel
+      // arriba, así que se comprueba en cada sondeo, no solo al arrancar.
+      setPendingDnsService(await managerRef.current.pendingDnsRestore());
     } catch (e) {
       setError(translateError(String(e)));
     }
@@ -157,6 +163,11 @@ export function VpnProvider({ children }: { children: ReactNode }) {
     [runBusy],
   );
 
+  const restoreDns = useCallback(
+    () => runBusy("", () => managerRef.current.restoreDns()),
+    [runBusy],
+  );
+
   const clearError = useCallback(() => setError(null), []);
 
   const value = useMemo<VpnContextValue>(
@@ -167,6 +178,7 @@ export function VpnProvider({ children }: { children: ReactNode }) {
       loading,
       busyTunnel,
       error,
+      pendingDnsService,
       refresh,
       recheckDeps,
       saveTunnel,
@@ -175,6 +187,7 @@ export function VpnProvider({ children }: { children: ReactNode }) {
       removeTunnel,
       connect,
       disconnect,
+      restoreDns,
       clearError,
     }),
     [
@@ -184,6 +197,7 @@ export function VpnProvider({ children }: { children: ReactNode }) {
       loading,
       busyTunnel,
       error,
+      pendingDnsService,
       refresh,
       recheckDeps,
       saveTunnel,
@@ -192,6 +206,7 @@ export function VpnProvider({ children }: { children: ReactNode }) {
       removeTunnel,
       connect,
       disconnect,
+      restoreDns,
       clearError,
     ],
   );

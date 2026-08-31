@@ -55,9 +55,17 @@ devuelve 1 cuando la línea no contiene "Error", y el `set -e` del script mata e
 proceso. El túnel se revierte, pero **el DNS que ya escribió no se restaura** —
 `del_dns` solo corre desde el monitor de rutas, que nunca llegó a arrancar.
 
-La app lo detecta (`classify_wg_up_error`) y lo explica en vez de volcar el
-trace, y avisa al importar un `.conf` con esa línea ofreciendo guardarla sin
-ella. Para devolver el DNS a su sitio a mano:
+Qué servicio lo dispara depende del orden de iteración de un array asociativo
+de bash, así que enchufar un adaptador o instalar otra VPN puede activar o
+desactivar el fallo sin tocar nada del túnel.
+
+Por eso **el conf que recibe `wg-quick` nunca lleva la línea `DNS`**: se copia a
+`staging/` sin ella (`stage_conf`). El `.conf` del usuario queda intacto. Si el
+túnel tiene marcada la casilla **Aplicar el DNS al conectar**, lo aplica la
+propia app —solo sobre el servicio de red activo, después de que el túnel esté
+arriba y sin abortar si `networksetup` protesta— y lo restaura al desconectar.
+El valor previo se guarda en `dns-backup.json` antes de tocar nada; si queda
+huérfano, la app ofrece restaurarlo en un banner. Para hacerlo a mano:
 
 ```bash
 sudo networksetup -setdnsservers "Wi-Fi" Empty

@@ -6,6 +6,7 @@ import {
   CONF_FILE_SUFFIX,
   CONF_KEY_SEPARATOR,
   CONF_LINE_SEPARATOR,
+  DNS_SEPARATOR,
   ERROR_MESSAGE,
   RATE_DECIMALS,
   TUNNEL_NAME_INVALID_CHARS,
@@ -42,15 +43,15 @@ function isDnsLine(line: string): boolean {
   return key.trim().toLowerCase() === CONF_DNS_KEY;
 }
 
-export function hasDnsLine(content: string): boolean {
-  return content.split(CONF_LINE_SEPARATOR).some(isDnsLine);
-}
-
-export function stripDnsLine(content: string): string {
-  return content
-    .split(CONF_LINE_SEPARATOR)
-    .filter((line) => !isDnsLine(line))
-    .join(CONF_LINE_SEPARATOR);
+/** Servidores de la línea `DNS = a, b` del conf; vacío si no la hay. */
+export function confDnsServers(content: string): string[] {
+  const line = content.split(CONF_LINE_SEPARATOR).find(isDnsLine);
+  if (!line) return [];
+  return line
+    .slice(line.indexOf(CONF_KEY_SEPARATOR) + 1)
+    .split(DNS_SEPARATOR)
+    .map((server) => server.trim())
+    .filter(Boolean);
 }
 
 export function translateError(code: string): string {

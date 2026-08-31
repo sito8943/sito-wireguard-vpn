@@ -1,0 +1,34 @@
+.Checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  cursor: default;
+}
+
+.Checkbox input {
+  margin: var(--space-0);
+  flex: none;
+  /* Sin esto la casilla no queda alineada con la primera línea del texto. */
+  margin-top: var(--space-1);
+}
+
+.Checkbox .text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.Checkbox .label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+}
+
+.Checkbox .hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.Checkbox:has(input:disabled) .label,
+.Checkbox:has(input:disabled) .hint {
+  opacity: var(--opacity-disabled);
+}

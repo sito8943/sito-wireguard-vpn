@@ -9,6 +9,8 @@ export const TUNNEL_COMMAND = {
   CONNECT_TUNNEL: "connect_tunnel",
   DISCONNECT_TUNNEL: "disconnect_tunnel",
   RECONNECT_TUNNEL: "reconnect_tunnel",
+  PENDING_DNS_RESTORE: "pending_dns_restore",
+  RESTORE_DNS: "restore_dns",
 } as const;
 
 export type TunnelCommand =

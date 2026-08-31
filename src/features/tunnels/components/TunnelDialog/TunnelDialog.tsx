@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCircleInfo, faFolderOpen } from "@fortawesome/free-solid-svg-icons";
 
 import { Button } from "@/shared/components/elements/Button";
+import { Checkbox } from "@/shared/components/elements/Checkbox";
 import { TextInput } from "@/shared/components/elements/TextInput";
 import { TextArea } from "@/shared/components/elements/TextArea";
 import { Dialog } from "@/shared/components/patterns/Dialog";
@@ -11,14 +12,12 @@ import { ConfirmDialog } from "@/shared/components/patterns/ConfirmDialog";
 import { BUTTON_COLOR, BUTTON_VARIANT } from "@/shared/constants";
 import { t } from "@/lang";
 import {
+  DEFAULT_DNS,
+  DNS_SEPARATOR,
   TUNNEL_DIALOG_MODE,
   TUNNEL_NAME_MAX_LENGTH,
 } from "@/features/tunnels/constants";
-import {
-  hasDnsLine,
-  sanitizeTunnelName,
-  stripDnsLine,
-} from "@/features/tunnels/utils";
+import { confDnsServers, sanitizeTunnelName } from "@/features/tunnels/utils";
 import { DIALOG_CONTENT_ROWS } from "./constants";
 import { TunnelDialogPropsType } from "./types";
 
@@ -38,7 +37,8 @@ export function TunnelDialog({
   const [name, setName] = useState(draft.name);
   const [content, setContent] = useState(draft.content);
   const [confirmingOverwrite, setConfirmingOverwrite] = useState(false);
-  const [confirmingDns, setConfirmingDns] = useState(false);
+  const [manageDns, setManageDns] = useState(draft.manageDns);
+  const [dnsText, setDnsText] = useState(draft.dns.join(`${DNS_SEPARATOR} `));
 
   const editing = draft.mode === TUNNEL_DIALOG_MODE.EDIT;
   const cleanName = sanitizeTunnelName(name);
@@ -47,6 +47,21 @@ export function TunnelDialog({
   const renamed = cleanName !== name.trim() && cleanName.length > 0;
   const collides =
     cleanName !== draft.name && existingNames.includes(cleanName);
+  const confDns = confDnsServers(content);
+  const servers = dnsText
+    .split(DNS_SEPARATOR)
+    .map((server) => server.trim())
+    .filter(Boolean);
+
+  // Al marcar la casilla el campo se rellena solo, para no guardar nunca un
+  // "aplica el DNS" que en realidad no aplicaría nada.
+  const toggleManageDns = (checked: boolean) => {
+    setManageDns(checked);
+    if (checked && servers.length === 0) {
+      const suggested = confDns.length > 0 ? confDns : [DEFAULT_DNS];
+      setDnsText(suggested.join(`${DNS_SEPARATOR} `));
+    }
+  };
 
   const pickFile = async () => {
     const picked = await onPickFile();
@@ -56,27 +71,21 @@ export function TunnelDialog({
     setContent(picked.content);
   };
 
-  const save = async (finalContent: string) => {
+  const save = async () => {
     setConfirmingOverwrite(false);
-    setConfirmingDns(false);
-    setContent(finalContent);
     const saved = await onSave({
       name: cleanName,
-      content: finalContent,
+      content,
       previousName: editing ? draft.name : undefined,
+      manageDns,
+      dns: manageDns ? servers : [],
     });
     // Si falló, el diálogo se queda abierto con lo escrito y el error se ve
     // detrás; cerrarlo obligaría a pegar el .conf otra vez.
     if (saved) onClose();
   };
 
-  // Confirmaciones encadenadas: primero el nombre (sobrescritura), después el
-  // contenido (la línea DNS que rompe wg-quick en macOS).
-  const confirmContent = () =>
-    hasDnsLine(content) ? setConfirmingDns(true) : save(content);
-
-  const submit = () =>
-    collides ? setConfirmingOverwrite(true) : confirmContent();
+  const submit = () => (collides ? setConfirmingOverwrite(true) : save());
 
   if (!open) return null;
 
@@ -112,6 +121,28 @@ export function TunnelDialog({
               {t("nameSanitizedHint", cleanName)}
             </p>
           ) : null}
+          <Checkbox
+            checked={manageDns}
+            onChange={(e) => toggleManageDns(e.target.checked)}
+            label={t("manageDnsLabel")}
+            hint={t("manageDnsHint")}
+          />
+          {manageDns ? (
+            <label className="field">
+              {t("manageDnsServers")}
+              <TextInput
+                value={dnsText}
+                onChange={(e) => setDnsText(e.target.value)}
+                placeholder={DEFAULT_DNS}
+              />
+            </label>
+          ) : null}
+          {!manageDns && confDns.length > 0 ? (
+            <p className="hint">
+              <FontAwesomeIcon icon={faCircleInfo} />{" "}
+              {t("manageDnsIgnored", confDns.join(`${DNS_SEPARATOR} `))}
+            </p>
+          ) : null}
           <label className="field">
             {t("importContent")}
             <TextArea
@@ -127,7 +158,11 @@ export function TunnelDialog({
             onPrimaryClick={submit}
             onCancel={onClose}
             isLoading={busy}
-            disabled={!cleanName || !content.trim()}
+            disabled={
+              !cleanName ||
+              !content.trim() ||
+              (manageDns && servers.length === 0)
+            }
           />
         </div>
       </Dialog>
@@ -139,20 +174,8 @@ export function TunnelDialog({
         confirmText={t("confirmOverwriteAction")}
         confirmColor={BUTTON_COLOR.ERROR}
         busy={busy}
-        onConfirm={confirmContent}
+        onConfirm={save}
         onClose={() => setConfirmingOverwrite(false)}
-      />
-
-      <ConfirmDialog
-        open={confirmingDns}
-        title={t("confirmDnsTitle")}
-        message={t("confirmDnsText")}
-        confirmText={t("confirmDnsStrip")}
-        extraText={t("confirmDnsKeep")}
-        busy={busy}
-        onExtra={() => save(content)}
-        onConfirm={() => save(stripDnsLine(content))}
-        onClose={() => setConfirmingDns(false)}
       />
     </>
   );

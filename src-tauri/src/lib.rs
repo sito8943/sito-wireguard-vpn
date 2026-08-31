@@ -1,5 +1,6 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::Command;
 use tauri::Manager;
@@ -17,6 +18,16 @@ const TOOL_PATH: &str = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbi
 // copia root en este directorio.
 const SYSTEM_CONF_DIR: &str = "/etc/wireguard";
 
+// Opciones por túnel: archivo hermano del .conf, para no ensuciar el original.
+const OPTIONS_SUFFIX: &str = "json";
+// DNS previo del sistema, guardado en disco antes de tocarlo: si la app muere
+// entre el connect y el disconnect, sigue habiendo con qué restaurar.
+const DNS_BACKUP_FILE: &str = "dns-backup.json";
+// networksetup usa esta palabra para "sin nada configurado".
+const NETWORKSETUP_EMPTY: &str = "Empty";
+// Conf sin la línea DNS que se le pasa a wg-quick.
+const STAGING_DIR: &str = "staging";
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TunnelInfo {
@@ -31,6 +42,28 @@ pub struct TunnelInfo {
     /// None = no aplica (desconectado); Some(false) = interfaz activa pero sin
     /// alcance al endpoint → la UI lo muestra como "Reconectando".
     pub reachable: Option<bool>,
+    /// La app aplica el DNS al conectar y lo restaura al desconectar.
+    pub manage_dns: bool,
+    /// Servidores que aplicaría; vienen del .conf salvo que se fijen a mano.
+    pub dns: Vec<String>,
+}
+
+/// Ajustes que no caben en el .conf de WireGuard. Viven en `<nombre>.json`
+/// junto al conf, así renombrar y borrar los arrastra igual.
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TunnelOptions {
+    pub manage_dns: bool,
+    pub dns: Vec<String>,
+}
+
+/// DNS que tenía el servicio antes de que lo tocáramos.
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct DnsBackup {
+    service: String,
+    servers: Vec<String>,
+    search_domains: Vec<String>,
 }
 
 fn tunnels_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -119,6 +152,172 @@ fn endpoint_reachable(endpoint: &str) -> bool {
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
+}
+
+// ---- Opciones por túnel -------------------------------------------------
+
+fn options_path(app: &tauri::AppHandle, name: &str) -> Result<PathBuf, String> {
+    Ok(tunnels_dir(app)?.join(format!("{name}.{OPTIONS_SUFFIX}")))
+}
+
+fn read_options(app: &tauri::AppHandle, name: &str) -> TunnelOptions {
+    options_path(app, name)
+        .ok()
+        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default()
+}
+
+fn write_options(
+    app: &tauri::AppHandle,
+    name: &str,
+    options: &TunnelOptions,
+) -> Result<(), String> {
+    let raw = serde_json::to_string_pretty(options).map_err(|e| e.to_string())?;
+    fs::write(options_path(app, name)?, raw).map_err(|e| e.to_string())
+}
+
+// ---- DNS ----------------------------------------------------------------
+
+/// Servidores de la línea `DNS = a, b` del conf.
+fn conf_dns(content: &str) -> Vec<String> {
+    parse_conf_field(content, "DNS")
+        .map(|value| {
+            value
+                .split(',')
+                .map(|item| item.trim().to_string())
+                .filter(|item| !item.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// El conf que ve wg-quick nunca lleva `DNS`: su set_dns aborta el `up` entero
+/// cuando networksetup imprime cualquier cosa, y qué servicio lo dispara
+/// depende del orden de un hash. Si hay que aplicar DNS, lo hace la app.
+fn strip_dns_lines(content: &str) -> String {
+    content
+        .lines()
+        .filter(|line| {
+            line.split_once('=')
+                .is_none_or(|(key, _)| !key.trim().eq_ignore_ascii_case("DNS"))
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Solo IPs: estos valores acaban dentro de un comando shell con privilegios.
+fn is_safe_dns(server: &str) -> bool {
+    !server.is_empty()
+        && server.len() <= 45
+        && server
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() || c == '.' || c == ':')
+}
+
+/// Nombre del servicio de networksetup por el que sale el tráfico ahora mismo.
+/// Solo se toca ese: wg-quick los recorre todos y ahí está su fallo.
+fn active_network_service() -> Option<String> {
+    let route = Command::new("route")
+        .args(["-n", "get", "default"])
+        .output()
+        .ok()?;
+    let device = String::from_utf8_lossy(&route.stdout)
+        .lines()
+        .find_map(|line| Some(line.trim().strip_prefix("interface: ")?.trim().to_string()))?;
+    let order = Command::new("networksetup")
+        .arg("-listnetworkserviceorder")
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&order.stdout);
+    let needle = format!("Device: {device})");
+    let mut current: Option<String> = None;
+    for line in text.lines() {
+        if line.contains("Hardware Port") {
+            if line.contains(&needle) {
+                return current;
+            }
+            continue;
+        }
+        // "(1) Wi-Fi" → el nombre del servicio que usa networksetup
+        if let Some((_, name)) = line.trim().strip_prefix('(')?.split_once(')') {
+            let name = name.trim();
+            if !name.is_empty() {
+                current = Some(name.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Valores actuales de networksetup; vacío = sin configurar. Cuando no hay
+/// nada, networksetup responde con una frase ("There aren't any…"), que se
+/// reconoce porque lleva espacios — mismo criterio que wg-quick.
+fn current_network_values(service: &str, flag: &str) -> Vec<String> {
+    let Ok(output) = Command::new("networksetup").args([flag, service]).output() else {
+        return Vec::new();
+    };
+    let text = String::from_utf8_lossy(&output.stdout);
+    if text.contains(' ') {
+        return Vec::new();
+    }
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn dns_backup_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join(DNS_BACKUP_FILE))
+}
+
+fn read_dns_backup(app: &tauri::AppHandle) -> Option<DnsBackup> {
+    let raw = fs::read_to_string(dns_backup_path(app).ok()?).ok()?;
+    serde_json::from_str(&raw).ok()
+}
+
+fn clear_dns_backup(app: &tauri::AppHandle) {
+    if let Ok(path) = dns_backup_path(app) {
+        let _ = fs::remove_file(path);
+    }
+}
+
+/// Guarda el estado actual ANTES de tocarlo. Sin esto, un fallo a medias deja
+/// el DNS del usuario cambiado y sin forma de saber a qué volver.
+fn save_dns_backup(app: &tauri::AppHandle, service: &str) -> Result<(), String> {
+    let backup = DnsBackup {
+        service: service.to_string(),
+        servers: current_network_values(service, "-getdnsservers"),
+        search_domains: current_network_values(service, "-getsearchdomains"),
+    };
+    let raw = serde_json::to_string_pretty(&backup).map_err(|e| e.to_string())?;
+    fs::write(dns_backup_path(app)?, raw).map_err(|e| e.to_string())
+}
+
+fn networksetup_command(flag: &str, service: &str, values: &[String]) -> String {
+    let list = if values.is_empty() {
+        NETWORKSETUP_EMPTY.to_string()
+    } else {
+        values.join(" ")
+    };
+    format!("networksetup {flag} '{service}' {list}")
+}
+
+/// Al revés que wg-quick: el DNS se aplica DESPUÉS de que el túnel esté arriba
+/// y con `|| true`, así un networksetup quejica no tumba la conexión.
+fn apply_dns_command(service: &str, servers: &[String]) -> String {
+    let set_servers = networksetup_command("-setdnsservers", service, servers);
+    let set_search = networksetup_command("-setsearchdomains", service, &[]);
+    format!(" && {{ {set_servers} || true; {set_search} || true; }}")
+}
+
+fn restore_dns_command(backup: &DnsBackup) -> String {
+    let servers = networksetup_command("-setdnsservers", &backup.service, &backup.servers);
+    let search = networksetup_command("-setsearchdomains", &backup.service, &backup.search_domains);
+    format!("; {servers} || true; {search} || true")
 }
 
 fn system_conf_path(name: &str) -> PathBuf {
@@ -211,6 +410,13 @@ fn tunnel_info(app: &tauri::AppHandle, name: &str) -> Result<TunnelInfo, String>
     } else {
         None
     };
+    let options = read_options(app, name);
+    // Los del conf salvo que el usuario los haya fijado a mano en el diálogo.
+    let dns = if options.dns.is_empty() {
+        conf_dns(&content)
+    } else {
+        options.dns
+    };
     Ok(TunnelInfo {
         name: name.to_string(),
         address,
@@ -220,6 +426,8 @@ fn tunnel_info(app: &tauri::AppHandle, name: &str) -> Result<TunnelInfo, String>
         rx_bytes,
         tx_bytes,
         reachable,
+        manage_dns: options.manage_dns,
+        dns,
     })
 }
 
@@ -310,6 +518,8 @@ async fn save_tunnel(
     name: String,
     content: String,
     previous_name: Option<String>,
+    manage_dns: bool,
+    dns: Vec<String>,
 ) -> Result<TunnelInfo, String> {
     blocking(move || {
         if !content.contains("[Interface]") || !content.contains("PrivateKey") {
@@ -326,9 +536,18 @@ async fn save_tunnel(
             .and_then(|prev| tunnel_info(&app, prev).ok())
             .is_some_and(|info| info.connected);
         fs::write(dir.join(format!("{name}.conf")), content).map_err(|e| e.to_string())?;
+        write_options(
+            &app,
+            &name,
+            &TunnelOptions {
+                manage_dns,
+                dns: dns.into_iter().filter(|s| is_safe_dns(s)).collect(),
+            },
+        )?;
         if renamed {
             let previous = previous.as_deref().unwrap_or_default();
             let _ = fs::remove_file(dir.join(format!("{previous}.conf")));
+            let _ = fs::remove_file(dir.join(format!("{previous}.{OPTIONS_SUFFIX}")));
             if !previous_connected {
                 remove_system_conf(previous)?;
             }
@@ -345,10 +564,54 @@ async fn delete_tunnel(app: tauri::AppHandle, name: String) -> Result<(), String
         // Primero la copia root: si se cancela la contraseña no se borra nada y
         // el túnel sigue completo en la lista.
         remove_system_conf(&name)?;
-        let path = tunnels_dir(&app)?.join(format!("{name}.conf"));
-        fs::remove_file(&path).map_err(|e| e.to_string())
+        let dir = tunnels_dir(&app)?;
+        let _ = fs::remove_file(dir.join(format!("{name}.{OPTIONS_SUFFIX}")));
+        fs::remove_file(dir.join(format!("{name}.conf"))).map_err(|e| e.to_string())
     })
     .await
+}
+
+/// Escribe en disco el conf que se le entregará a wg-quick, sin la línea DNS.
+/// El original del usuario queda intacto y sigue siendo portable.
+fn stage_conf(app: &tauri::AppHandle, name: &str) -> Result<String, String> {
+    let content = fs::read_to_string(tunnels_dir(app)?.join(format!("{name}.conf")))
+        .map_err(|_| "tunnel-not-found".to_string())?;
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| e.to_string())?
+        .join(STAGING_DIR);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = dir.join(format!("{name}.conf"));
+    fs::write(&path, strip_dns_lines(&content)).map_err(|e| e.to_string())?;
+    // Contiene la PrivateKey: nadie más que el usuario debe poder leerlo.
+    let mut perms = fs::metadata(&path)
+        .map_err(|e| e.to_string())?
+        .permissions();
+    perms.set_mode(0o600);
+    fs::set_permissions(&path, perms).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+/// Trozo de shell que aplica el DNS tras el `up`, si el túnel lo tiene activado.
+/// Deja el backup escrito antes de devolverlo.
+fn dns_step(app: &tauri::AppHandle, name: &str) -> String {
+    let info = match tunnel_info(app, name) {
+        Ok(info) if info.manage_dns => info,
+        _ => return String::new(),
+    };
+    let servers: Vec<String> = info.dns.into_iter().filter(|s| is_safe_dns(s)).collect();
+    if servers.is_empty() {
+        return String::new();
+    }
+    let Some(service) = active_network_service() else {
+        return String::new();
+    };
+    if save_dns_backup(app, &service).is_err() {
+        // Sin backup no se toca nada: es peor dejar el DNS cambiado sin vuelta.
+        return String::new();
+    }
+    apply_dns_command(&service, &servers)
 }
 
 fn connect_impl(app: &tauri::AppHandle, name: &str) -> Result<TunnelInfo, String> {
@@ -356,13 +619,18 @@ fn connect_impl(app: &tauri::AppHandle, name: &str) -> Result<TunnelInfo, String
     if find_wg_quick().is_none() {
         return Err("missing-deps".into());
     }
-    let conf = tunnels_dir(app)?.join(format!("{name}.conf"));
-    let conf_path = conf.to_string_lossy().to_string();
+    let conf_path = stage_conf(app, &name)?;
     let install = install_conf_command(&conf_path, &name);
-    run_admin_shell(&format!(
-        "{install} && env PATH={TOOL_PATH} wg-quick up '{name}'"
+    let dns = dns_step(app, &name);
+    // El DNS va tras `&&`: si el `up` falla no se toca la red del usuario.
+    let result = run_admin_shell(&format!(
+        "{install} && env PATH={TOOL_PATH} wg-quick up '{name}'{dns}"
     ))
-    .map_err(classify_wg_up_error)?;
+    .map_err(classify_wg_up_error);
+    if result.is_err() {
+        clear_dns_backup(app);
+    }
+    result?;
     tunnel_info(app, &name)
 }
 
@@ -382,12 +650,12 @@ fn reconnect_impl(
         Some(prev) => sanitize_name(prev)?,
         None => name.clone(),
     };
-    let conf = tunnels_dir(app)?.join(format!("{name}.conf"));
-    let conf_path = conf.to_string_lossy().to_string();
+    let conf_path = stage_conf(app, &name)?;
     let install = install_conf_command(&conf_path, &name);
+    let dns = dns_step(app, &name);
     // `|| true` en el down: si la interfaz ya no estaba arriba no debe abortar.
     let command = format!(
-        "env PATH={TOOL_PATH} wg-quick down '{previous}' || true; rm -f '{SYSTEM_CONF_DIR}/{previous}.conf'; {install} && env PATH={TOOL_PATH} wg-quick up '{name}'"
+        "env PATH={TOOL_PATH} wg-quick down '{previous}' || true; rm -f '{SYSTEM_CONF_DIR}/{previous}.conf'; {install} && env PATH={TOOL_PATH} wg-quick up '{name}'{dns}"
     );
     run_admin_shell(&command).map_err(classify_wg_up_error)?;
     tunnel_info(app, &name)
@@ -395,8 +663,17 @@ fn reconnect_impl(
 
 fn disconnect_impl(app: &tauri::AppHandle, name: &str) -> Result<TunnelInfo, String> {
     let name = sanitize_name(name)?;
-    let command = format!("env PATH={TOOL_PATH} wg-quick down '{name}'");
-    run_admin_shell(&command)?;
+    // El DNS se restaura con `;`, no con `&&`: aunque el down falle hay que
+    // devolver la red del usuario a como estaba.
+    let restore = read_dns_backup(app)
+        .map(|backup| restore_dns_command(&backup))
+        .unwrap_or_default();
+    let command = format!("env PATH={TOOL_PATH} wg-quick down '{name}'{restore}");
+    let result = run_admin_shell(&command);
+    if result.is_ok() {
+        clear_dns_backup(app);
+    }
+    result?;
     tunnel_info(app, &name)
 }
 
@@ -410,12 +687,16 @@ fn disconnect_all_impl(app: &tauri::AppHandle) -> Result<(), String> {
     if names.is_empty() {
         return Ok(());
     }
+    let restore = read_dns_backup(app)
+        .map(|backup| restore_dns_command(&backup))
+        .unwrap_or_default();
     let command = names
         .iter()
         .map(|n| format!("env PATH={TOOL_PATH} wg-quick down '{n}'"))
         .collect::<Vec<_>>()
         .join("; ");
-    run_admin_shell(&command)?;
+    run_admin_shell(&format!("{command}{restore}"))?;
+    clear_dns_backup(app);
     Ok(())
 }
 
@@ -427,6 +708,36 @@ async fn connect_tunnel(app: tauri::AppHandle, name: String) -> Result<TunnelInf
 #[tauri::command]
 async fn disconnect_tunnel(app: tauri::AppHandle, name: String) -> Result<TunnelInfo, String> {
     blocking(move || disconnect_impl(&app, &name)).await
+}
+
+/// Servicio cuyo DNS quedó cambiado por una sesión anterior sin restaurar.
+/// Solo cuenta si ya no queda ningún túnel arriba.
+#[tauri::command]
+async fn pending_dns_restore(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    blocking(move || {
+        let Some(backup) = read_dns_backup(&app) else {
+            return Ok(None);
+        };
+        if tunnel_states(&app).iter().any(|(_, connected)| *connected) {
+            return Ok(None);
+        }
+        Ok(Some(backup.service))
+    })
+    .await
+}
+
+#[tauri::command]
+async fn restore_dns(app: tauri::AppHandle) -> Result<(), String> {
+    blocking(move || {
+        let Some(backup) = read_dns_backup(&app) else {
+            return Ok(());
+        };
+        // El comando empieza por "; " porque se compone tras un wg-quick down.
+        run_admin_shell(restore_dns_command(&backup).trim_start_matches("; "))?;
+        clear_dns_backup(&app);
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]
@@ -665,7 +976,9 @@ pub fn run() {
             delete_tunnel,
             connect_tunnel,
             disconnect_tunnel,
-            reconnect_tunnel
+            reconnect_tunnel,
+            pending_dns_restore,
+            restore_dns
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -673,7 +986,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::classify_wg_up_error;
+    use super::{classify_wg_up_error, conf_dns, is_safe_dns, strip_dns_lines};
 
     /// Trace real de un `up` que murió en set_dns (macOS Sonoma): llega a
     /// configurar el DNS y nunca imprime el hito del monitor de rutas.
@@ -695,6 +1008,36 @@ mod tests {
             classify_wg_up_error(TRACE_SUCCESS.to_string()),
             TRACE_SUCCESS
         );
+    }
+
+    const CONF: &str = "[Interface]\nPrivateKey = k\nAddress = 10.0.0.3/32\nDNS = 1.1.1.1, 8.8.8.8\n\n[Peer]\nAllowedIPs = 0.0.0.0/0";
+
+    #[test]
+    fn reads_every_dns_server_from_the_conf() {
+        assert_eq!(conf_dns(CONF), vec!["1.1.1.1", "8.8.8.8"]);
+        assert!(conf_dns("[Interface]\nAddress = 10.0.0.3/32").is_empty());
+    }
+
+    #[test]
+    fn removes_only_the_dns_line() {
+        let stripped = strip_dns_lines(CONF);
+        assert!(!stripped.contains("DNS"));
+        assert!(stripped.contains("PrivateKey = k"));
+        assert!(stripped.contains("AllowedIPs = 0.0.0.0/0"));
+        // Una línea que solo menciona DNS en el valor no se toca.
+        let hook = "PostUp = echo DNS=1";
+        assert_eq!(strip_dns_lines(hook), hook);
+    }
+
+    #[test]
+    fn rejects_dns_values_that_are_not_addresses() {
+        assert!(is_safe_dns("1.1.1.1"));
+        assert!(is_safe_dns("2606:4700:4700::1111"));
+        // Estos acaban dentro de un comando con privilegios.
+        assert!(!is_safe_dns("1.1.1.1; rm -rf /"));
+        assert!(!is_safe_dns("$(whoami)"));
+        assert!(!is_safe_dns("'; reboot #"));
+        assert!(!is_safe_dns(""));
     }
 
     #[test]
