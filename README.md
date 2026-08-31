@@ -71,22 +71,29 @@ Feature-sliced con CSS plano y design tokens:
 src/
   app/                      # Composition root: routes.ts, layout/AppLayout
   shared/                   # Genérico/cross-feature
-    components/elements/    # Primitivas (Spinner, ConfirmDialog)
+    components/elements/    # Primitivas (Button, IconButton, TextInput, TextArea, Spinner)
+    components/patterns/    # Composiciones (Dialog, DialogActions, ConfirmDialog)
+    services/               # api.ts: TODOS los invoke de Tauri, uno por comando
+    models/                 # TunnelInfo, TunnelRate (contrato con Rust)
     providers/ThemeProvider # Tema del SO (prefers-color-scheme → <html data-theme>)
     constants.ts            # THEME, BUTTON_COLOR/VARIANT/SIZE
   features/tunnels/         # Todo el dominio VPN
     Tunnels.tsx             # Vista principal
     components/             # StatusBadge, TunnelCard, TunnelDialog, DepsBanner
     providers/VpnProvider/  # Contexto + hook useVpn
-    managers/TunnelManager/ # Encapsula los invoke de Tauri
-    models/ constants.ts utils.ts
+    managers/TunnelManager/ # Orquesta el dominio sobre shared/services/api
+    constants.ts types.ts utils.ts
   lang/                     # i18n (es)
   styles/                   # theme.css (tokens :root, light/dark) + CSS por componente
 ```
 
+Las reglas completas están en [`ARCHITECTURE_RULES.md`](./ARCHITECTURE_RULES.md). En corto:
+
 - Imports con alias `@/` (→ `src/`).
-- Sin literales mágicos: comandos Tauri en `TUNNEL_COMMAND`, variantes de UI en const-objects, thresholds en `constants.ts`.
-- Todos los valores dimensionales/colores del CSS salen de tokens `--*` en `styles/theme.css`.
+- Sin literales mágicos: comandos Tauri en `TUNNEL_COMMAND`, variantes de UI en const-objects, thresholds en `constants.ts` (§11).
+- Todos los valores dimensionales/colores del CSS salen de tokens `--*` en `styles/theme.css` (§12).
+- Ningún `invoke` fuera de `shared/services/api.ts` (§13); ningún feature importa `@sito/ui` ni usa `<input>`/`<textarea>` crudos (§14) — ESLint lo bloquea.
+- Las cadenas con datos son funciones en `lang/es.ts` (§9).
 
 ### Comandos Rust (src-tauri)
 

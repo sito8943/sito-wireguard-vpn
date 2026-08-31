@@ -49,6 +49,41 @@ export default defineConfig([
     },
   },
   {
+    // §14.1: los elementos crudos van envueltos en shared/components/elements,
+    // que es el único sitio donde pueden aparecer.
+    files: ["src/**/*.tsx"],
+    ignores: ["src/shared/components/elements/**"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "JSXOpeningElement[name.name=/^(button|input|select|textarea)$/]",
+          message:
+            "Usa las primitivas de shared/components/elements (Button, TextInput, TextArea…).",
+        },
+      ],
+    },
+  },
+  {
+    // §14.1: un feature nunca se acopla a @sito/ui; pasa por los envoltorios.
+    files: ["src/features/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@sito/ui",
+              message:
+                "Importa el envoltorio de shared/components (elements o patterns).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ["*.{js,ts}"],
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     languageOptions: {

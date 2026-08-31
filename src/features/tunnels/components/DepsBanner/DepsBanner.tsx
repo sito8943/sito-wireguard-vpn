@@ -1,4 +1,3 @@
-import { Button } from "@sito/ui";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faWarning,
@@ -6,6 +5,7 @@ import {
   faRotateLeft,
 } from "@fortawesome/free-solid-svg-icons";
 
+import { Button } from "@/shared/components/elements/Button";
 import { BUTTON_SIZE, BUTTON_VARIANT } from "@/shared/constants";
 import { t } from "@/lang";
 import { BREW_INSTALL_COMMAND } from "./constants";

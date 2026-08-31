@@ -23,7 +23,12 @@ export function ConfirmDialog({
   if (!open) return null;
 
   return (
-    <Dialog open={open} onClose={onClose} title={title} className="ConfirmDialog">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={title}
+      className="ConfirmDialog"
+    >
       <div className="body">
         <p className="message">{message}</p>
         <div className="actions">

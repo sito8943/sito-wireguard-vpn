@@ -1,4 +1,3 @@
-import { Button, IconButton } from "@sito/ui";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faTrash,
@@ -8,6 +7,8 @@ import {
   faArrowUp,
 } from "@fortawesome/free-solid-svg-icons";
 
+import { Button } from "@/shared/components/elements/Button";
+import { IconButton } from "@/shared/components/elements/IconButton";
 import { StatusBadge } from "@/features/tunnels/components/StatusBadge";
 import { getTunnelStatus, formatRate } from "@/features/tunnels/utils";
 import { BUTTON_COLOR, BUTTON_SIZE, BUTTON_VARIANT } from "@/shared/constants";

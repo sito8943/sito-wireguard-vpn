@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { Button, Dialog, DialogActions } from "@sito/ui";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faCircleInfo,
-  faFolderOpen,
-  faXmark,
-} from "@fortawesome/free-solid-svg-icons";
+import { faCircleInfo, faFolderOpen } from "@fortawesome/free-solid-svg-icons";
 
-import { ConfirmDialog } from "@/shared/components/elements/ConfirmDialog";
+import { Button } from "@/shared/components/elements/Button";
+import { TextInput } from "@/shared/components/elements/TextInput";
+import { TextArea } from "@/shared/components/elements/TextArea";
+import { Dialog } from "@/shared/components/patterns/Dialog";
+import { DialogActions } from "@/shared/components/patterns/DialogActions";
+import { ConfirmDialog } from "@/shared/components/patterns/ConfirmDialog";
 import { BUTTON_COLOR, BUTTON_VARIANT } from "@/shared/constants";
 import { t } from "@/lang";
 import {
@@ -73,8 +73,6 @@ export function TunnelDialog({
         open={open}
         onClose={onClose}
         title={editing ? t("editTitle") : t("importTitle")}
-        closeLabel={t("cancel")}
-        closeIcon={<FontAwesomeIcon icon={faXmark} />}
         className="TunnelDialog"
       >
         <div className="body">
@@ -88,7 +86,7 @@ export function TunnelDialog({
           ) : null}
           <label className="field">
             {t("importName")}
-            <input
+            <TextInput
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t("importNamePlaceholder")}
@@ -98,12 +96,12 @@ export function TunnelDialog({
           {renamed ? (
             <p className="hint">
               <FontAwesomeIcon icon={faCircleInfo} />{" "}
-              {t("nameSanitizedHint", { name: cleanName })}
+              {t("nameSanitizedHint", cleanName)}
             </p>
           ) : null}
           <label className="field">
             {t("importContent")}
-            <textarea
+            <TextArea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={DIALOG_CONTENT_ROWS}
@@ -124,7 +122,7 @@ export function TunnelDialog({
       <ConfirmDialog
         open={confirmingOverwrite}
         title={t("confirmOverwriteTitle")}
-        message={t("confirmOverwriteText", { name: cleanName })}
+        message={t("confirmOverwriteText", cleanName)}
         confirmText={t("confirmOverwriteAction")}
         confirmColor={BUTTON_COLOR.ERROR}
         busy={busy}

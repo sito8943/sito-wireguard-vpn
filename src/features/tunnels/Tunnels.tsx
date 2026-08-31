@@ -1,33 +1,24 @@
 import { useState } from "react";
-import { Button, IconButton } from "@sito/ui";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faXmark } from "@fortawesome/free-solid-svg-icons";
 
 import { useVpn } from "./providers/VpnProvider";
 import { TunnelCard } from "./components/TunnelCard";
-import {
-  PickedConfFile,
-  TunnelDialog,
-  TunnelDraft,
-} from "./components/TunnelDialog";
+import { PickedConfFile, TunnelDialog } from "./components/TunnelDialog";
 import { DepsBanner } from "./components/DepsBanner";
-import { ConfirmDialog } from "@/shared/components/elements/ConfirmDialog";
+import { Button } from "@/shared/components/elements/Button";
+import { IconButton } from "@/shared/components/elements/IconButton";
 import { Spinner } from "@/shared/components/elements/Spinner";
+import { ConfirmDialog } from "@/shared/components/patterns/ConfirmDialog";
 import { BUTTON_COLOR, BUTTON_VARIANT } from "@/shared/constants";
 import { t } from "@/lang";
 import { TunnelInfo } from "@/shared/models";
-import { CONF_EXTENSION, TUNNEL_DIALOG_MODE } from "./constants";
+import { CONF_EXTENSION, EMPTY_DRAFT, TUNNEL_DIALOG_MODE } from "./constants";
+import { TunnelDraft } from "./types";
 import { fileStem } from "./utils";
 
 import "@/styles/views/Tunnels.css";
-
-const EMPTY_DRAFT: TunnelDraft = {
-  mode: TUNNEL_DIALOG_MODE.CREATE,
-  name: "",
-  content: "",
-  connected: false,
-};
 
 export function Tunnels() {
   const {
@@ -155,7 +146,7 @@ export function Tunnels() {
       <ConfirmDialog
         open={pendingDelete !== null}
         title={t("confirmDeleteTitle")}
-        message={t("confirmDeleteText", { name: pendingDelete ?? "" })}
+        message={t("confirmDeleteText", pendingDelete ?? "")}
         confirmText={t("confirmDeleteAction")}
         confirmColor={BUTTON_COLOR.ERROR}
         busy={busyTunnel !== null}
