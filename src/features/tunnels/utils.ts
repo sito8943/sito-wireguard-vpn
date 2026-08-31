@@ -1,16 +1,16 @@
-import { TunnelInfo } from "./models/tunnel";
+import { TunnelInfo } from "@/shared/models";
 import {
   BYTES_PER_KB,
   BYTES_PER_MB,
   CONF_FILE_SUFFIX,
-  ERROR_CODE,
+  ERROR_MESSAGE,
   RATE_DECIMALS,
   TUNNEL_NAME_INVALID_CHARS,
   TUNNEL_NAME_MAX_LENGTH,
   TUNNEL_STATUS,
   TunnelStatus,
 } from "./constants";
-import { t, TranslationKey } from "@/lang";
+import { t } from "@/lang";
 
 export function fileStem(path: string): string {
   const base = path.split("/").pop() ?? path;
@@ -32,16 +32,6 @@ export function sanitizeTunnelName(name: string): string {
     .replace(TUNNEL_NAME_INVALID_CHARS, "")
     .slice(0, TUNNEL_NAME_MAX_LENGTH);
 }
-
-// Los commands de Tauri rechazan con estos códigos; cualquier otra cosa es un
-// error del sistema y se muestra en crudo tras errorGeneric.
-const ERROR_MESSAGE: Record<string, TranslationKey> = {
-  [ERROR_CODE.INVALID_CONFIG]: "errorInvalidConfig",
-  [ERROR_CODE.INVALID_NAME]: "errorInvalidName",
-  [ERROR_CODE.INVALID_FILE]: "errorInvalidFile",
-  [ERROR_CODE.MISSING_DEPS]: "errorMissingDeps",
-  [ERROR_CODE.TUNNEL_NOT_FOUND]: "errorTunnelNotFound",
-};
 
 export function translateError(code: string): string {
   const key = ERROR_MESSAGE[code.trim()];

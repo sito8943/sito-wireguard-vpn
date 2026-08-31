@@ -1,18 +1,28 @@
 import { es } from "./es";
 
-export type TranslationKey = keyof typeof es;
-export type TranslationParams = Record<string, string>;
+type Dictionary = typeof es;
+
+export type TranslationKey = keyof Dictionary;
+
+/**
+ * Las cadenas con datos son funciones (ARCHITECTURE_RULES §9), no plantillas
+ * con marcadores: así `t` exige los argumentos correctos en tiempo de compilación.
+ */
+type TranslationArgs<K extends TranslationKey> = Dictionary[K] extends (
+  ...args: infer P
+) => string
+  ? P
+  : [];
 
 const dictionary = es;
 
-// Los textos con datos usan marcadores {clave}: t("confirmDeleteText", { name })
-const PLACEHOLDER = /\{(\w+)\}/g;
-
-export const t = (key: TranslationKey, params?: TranslationParams): string => {
-  const text: string = dictionary[key];
-  if (!params) return text;
-  return text.replace(
-    PLACEHOLDER,
-    (match, param: string) => params[param] ?? match,
-  );
+export const t = <K extends TranslationKey>(
+  key: K,
+  ...args: TranslationArgs<K>
+): string => {
+  const entry: unknown = dictionary[key];
+  if (typeof entry === "function") {
+    return (entry as (...params: TranslationArgs<K>) => string)(...args);
+  }
+  return entry as string;
 };

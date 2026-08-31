@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 
-import { TunnelInfo, TunnelRate } from "@/features/tunnels/models/tunnel";
+import { TunnelInfo, TunnelRate } from "@/shared/models";
 import {
   SaveTunnelInput,
   TunnelManager,

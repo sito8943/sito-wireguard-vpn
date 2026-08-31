@@ -12,22 +12,6 @@
   color: var(--color-text-muted);
 }
 
-.TunnelDialog .field input,
-.TunnelDialog .field textarea {
-  border: var(--border-width-default) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-background-app);
-  padding: var(--space-2);
-  font-size: var(--font-size-sm);
-  color: var(--color-text);
-  font-family: var(--font-mono);
-}
-
-.TunnelDialog .field textarea {
-  resize: vertical;
-  min-height: var(--size-tunnel-textarea-min);
-}
-
 .TunnelDialog .hint {
   display: flex;
   align-items: center;

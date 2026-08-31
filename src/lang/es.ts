@@ -17,18 +17,19 @@ export const es = {
   importContent: "Contenido del archivo .conf",
   importPickFile: "Elegir archivo .conf",
   importSave: "Guardar",
-  nameSanitizedHint: "Se guardará como «{name}» (solo letras, números, - y _).",
+  nameSanitizedHint: (name: string) =>
+    `Se guardará como «${name}» (solo letras, números, - y _).`,
   editConnectedHint: "El túnel está conectado: al guardar se reconectará.",
   confFilter: "WireGuard",
   cancel: "Cancelar",
   deleteTunnel: "Eliminar túnel",
   confirmDeleteTitle: "¿Eliminar el túnel?",
-  confirmDeleteText:
-    "Se borrará la configuración de «{name}». Esta acción no se puede deshacer.",
+  confirmDeleteText: (name: string) =>
+    `Se borrará la configuración de «${name}». Esta acción no se puede deshacer.`,
   confirmDeleteAction: "Eliminar",
   confirmOverwriteTitle: "Ese nombre ya existe",
-  confirmOverwriteText:
-    "Ya hay un túnel llamado «{name}». Su configuración se reemplazará.",
+  confirmOverwriteText: (name: string) =>
+    `Ya hay un túnel llamado «${name}». Su configuración se reemplazará.`,
   confirmOverwriteAction: "Reemplazar",
   ipLabel: "IP",
   endpointLabel: "Endpoint",

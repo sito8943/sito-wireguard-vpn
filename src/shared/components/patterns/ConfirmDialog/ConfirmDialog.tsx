@@ -1,7 +1,5 @@
-import { Button, Dialog } from "@sito/ui";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faXmark } from "@fortawesome/free-solid-svg-icons";
-
+import { Button } from "@/shared/components/elements/Button";
+import { Dialog } from "@/shared/components/patterns/Dialog";
 import { BUTTON_COLOR, BUTTON_VARIANT } from "@/shared/constants";
 import { t } from "@/lang";
 import { ConfirmDialogPropsType } from "./types";
@@ -10,8 +8,7 @@ import "@/styles/components/ConfirmDialog.css";
 
 /**
  * Confirmación para acciones sin vuelta atrás (borrar, sobrescribir).
- * No usa DialogActions de @sito/ui porque este no permite teñir de rojo el
- * botón primario.
+ * No usa DialogActions porque este no permite teñir de rojo el botón primario.
  */
 export function ConfirmDialog({
   open,
@@ -26,14 +23,7 @@ export function ConfirmDialog({
   if (!open) return null;
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={title}
-      closeLabel={t("cancel")}
-      closeIcon={<FontAwesomeIcon icon={faXmark} />}
-      className="ConfirmDialog"
-    >
+    <Dialog open={open} onClose={onClose} title={title} className="ConfirmDialog">
       <div className="body">
         <p className="message">{message}</p>
         <div className="actions">

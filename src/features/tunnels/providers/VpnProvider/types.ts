@@ -1,4 +1,4 @@
-import { TunnelInfo, TunnelRate } from "@/features/tunnels/models/tunnel";
+import { TunnelInfo, TunnelRate } from "@/shared/models";
 import { SaveTunnelInput } from "@/features/tunnels/managers/TunnelManager";
 
 export interface TrafficSample {

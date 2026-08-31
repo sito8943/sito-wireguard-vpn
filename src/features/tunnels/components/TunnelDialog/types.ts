@@ -1,17 +1,9 @@
 import { SaveTunnelInput } from "@/features/tunnels/managers/TunnelManager";
-import { TunnelDialogMode } from "@/features/tunnels/constants";
+import { TunnelDraft } from "@/features/tunnels/types";
 
 export interface PickedConfFile {
   name: string;
   content: string;
-}
-
-/** Túnel que está editando el diálogo; null mientras no hay ninguno abierto. */
-export interface TunnelDraft {
-  mode: TunnelDialogMode;
-  name: string;
-  content: string;
-  connected: boolean;
 }
 
 export interface TunnelDialogPropsType {

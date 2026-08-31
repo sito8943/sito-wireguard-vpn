@@ -16,7 +16,7 @@ import { ConfirmDialog } from "@/shared/components/elements/ConfirmDialog";
 import { Spinner } from "@/shared/components/elements/Spinner";
 import { BUTTON_COLOR, BUTTON_VARIANT } from "@/shared/constants";
 import { t } from "@/lang";
-import { TunnelInfo } from "./models/tunnel";
+import { TunnelInfo } from "@/shared/models";
 import { CONF_EXTENSION, TUNNEL_DIALOG_MODE } from "./constants";
 import { fileStem } from "./utils";
 

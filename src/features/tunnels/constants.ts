@@ -1,3 +1,6 @@
+import type { TranslationKey } from "@/lang";
+import type { TunnelDraft } from "./types";
+
 export const CONF_EXTENSION = "conf";
 export const CONF_FILE_SUFFIX = `.${CONF_EXTENSION}`;
 
@@ -37,3 +40,21 @@ export const ERROR_CODE = {
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];
+
+// Los commands de Tauri rechazan con estos códigos; cualquier otro string es un
+// error del sistema y se muestra en crudo tras errorGeneric.
+export const ERROR_MESSAGE: Record<string, TranslationKey> = {
+  [ERROR_CODE.INVALID_CONFIG]: "errorInvalidConfig",
+  [ERROR_CODE.INVALID_NAME]: "errorInvalidName",
+  [ERROR_CODE.INVALID_FILE]: "errorInvalidFile",
+  [ERROR_CODE.MISSING_DEPS]: "errorMissingDeps",
+  [ERROR_CODE.TUNNEL_NOT_FOUND]: "errorTunnelNotFound",
+};
+
+/** Estado inicial del diálogo al importar un túnel nuevo. */
+export const EMPTY_DRAFT: TunnelDraft = {
+  mode: TUNNEL_DIALOG_MODE.CREATE,
+  name: "",
+  content: "",
+  connected: false,
+};

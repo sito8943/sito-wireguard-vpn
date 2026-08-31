@@ -1,4 +1,4 @@
-import { ButtonColor } from "@sito/ui";
+import type { ButtonColor } from "@sito/ui";
 
 export interface ConfirmDialogPropsType {
   open: boolean;

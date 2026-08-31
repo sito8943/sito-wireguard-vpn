@@ -1,56 +1,51 @@
-import { invoke } from "@tauri-apps/api/core";
-
-import { TunnelInfo } from "@/features/tunnels/models/tunnel";
-import { TUNNEL_COMMAND } from "./constants";
+import { api } from "@/shared/services";
+import { TunnelInfo } from "@/shared/models";
 import { SaveTunnelInput } from "./types";
 
 /**
- * Encapsula todas las operaciones de dominio sobre túneles WireGuard.
- * Los componentes nunca llaman a `invoke` directamente (ARCHITECTURE_RULES §4).
+ * Encapsula las operaciones de dominio sobre túneles WireGuard: los componentes
+ * hablan con este manager, nunca con la capa de IPC (ARCHITECTURE_RULES §3).
  */
 export class TunnelManager {
   checkDeps(): Promise<string | null> {
-    return invoke<string | null>(TUNNEL_COMMAND.CHECK_DEPS);
+    return api.checkDeps();
   }
 
   readConfFile(path: string): Promise<string> {
-    return invoke<string>(TUNNEL_COMMAND.READ_CONF_FILE, { path });
+    return api.readConfFile(path);
   }
 
   /** Contenido del .conf ya guardado, para el diálogo de edición. */
   read(name: string): Promise<string> {
-    return invoke<string>(TUNNEL_COMMAND.READ_TUNNEL, { name });
+    return api.readTunnel(name);
   }
 
   list(): Promise<TunnelInfo[]> {
-    return invoke<TunnelInfo[]>(TUNNEL_COMMAND.LIST_TUNNELS);
+    return api.listTunnels();
   }
 
   save(input: SaveTunnelInput): Promise<TunnelInfo> {
-    return invoke<TunnelInfo>(TUNNEL_COMMAND.SAVE_TUNNEL, {
-      name: input.name,
-      content: input.content,
-      previousName: input.previousName ?? null,
-    });
+    return api.saveTunnel(
+      input.name,
+      input.content,
+      input.previousName ?? null,
+    );
   }
 
   remove(name: string): Promise<void> {
-    return invoke<void>(TUNNEL_COMMAND.DELETE_TUNNEL, { name });
+    return api.deleteTunnel(name);
   }
 
   connect(name: string): Promise<TunnelInfo> {
-    return invoke<TunnelInfo>(TUNNEL_COMMAND.CONNECT_TUNNEL, { name });
+    return api.connectTunnel(name);
   }
 
   disconnect(name: string): Promise<TunnelInfo> {
-    return invoke<TunnelInfo>(TUNNEL_COMMAND.DISCONNECT_TUNNEL, { name });
+    return api.disconnectTunnel(name);
   }
 
   /** Baja `previousName` y sube `name` con el conf nuevo en un solo prompt. */
   reconnect(name: string, previousName?: string): Promise<TunnelInfo> {
-    return invoke<TunnelInfo>(TUNNEL_COMMAND.RECONNECT_TUNNEL, {
-      name,
-      previousName: previousName ?? null,
-    });
+    return api.reconnectTunnel(name, previousName ?? null);
   }
 }
