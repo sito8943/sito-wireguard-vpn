@@ -2,6 +2,10 @@ import type { TranslationKey } from "@/lang";
 import type { TunnelDraft } from "./types";
 
 export const CONF_EXTENSION = "conf";
+// Clave del .conf que dispara set_dns en wg-quick (ver errorDnsSetupFailed)
+export const CONF_DNS_KEY = "dns";
+export const CONF_KEY_SEPARATOR = "=";
+export const CONF_LINE_SEPARATOR = "\n";
 export const CONF_FILE_SUFFIX = `.${CONF_EXTENSION}`;
 
 // wg-quick limita el nombre de interfaz (se valida también en Rust)
@@ -36,6 +40,7 @@ export const ERROR_CODE = {
   INVALID_FILE: "invalid-file",
   MISSING_DEPS: "missing-deps",
   TUNNEL_NOT_FOUND: "tunnel-not-found",
+  DNS_SETUP_FAILED: "dns-setup-failed",
   USER_CANCELED: "user-canceled",
 } as const;
 
@@ -49,6 +54,7 @@ export const ERROR_MESSAGE: Record<string, TranslationKey> = {
   [ERROR_CODE.INVALID_FILE]: "errorInvalidFile",
   [ERROR_CODE.MISSING_DEPS]: "errorMissingDeps",
   [ERROR_CODE.TUNNEL_NOT_FOUND]: "errorTunnelNotFound",
+  [ERROR_CODE.DNS_SETUP_FAILED]: "errorDnsSetupFailed",
 };
 
 /** Estado inicial del diálogo al importar un túnel nuevo. */

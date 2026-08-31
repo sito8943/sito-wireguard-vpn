@@ -14,7 +14,11 @@ import {
   TUNNEL_DIALOG_MODE,
   TUNNEL_NAME_MAX_LENGTH,
 } from "@/features/tunnels/constants";
-import { sanitizeTunnelName } from "@/features/tunnels/utils";
+import {
+  hasDnsLine,
+  sanitizeTunnelName,
+  stripDnsLine,
+} from "@/features/tunnels/utils";
 import { DIALOG_CONTENT_ROWS } from "./constants";
 import { TunnelDialogPropsType } from "./types";
 
@@ -34,6 +38,7 @@ export function TunnelDialog({
   const [name, setName] = useState(draft.name);
   const [content, setContent] = useState(draft.content);
   const [confirmingOverwrite, setConfirmingOverwrite] = useState(false);
+  const [confirmingDns, setConfirmingDns] = useState(false);
 
   const editing = draft.mode === TUNNEL_DIALOG_MODE.EDIT;
   const cleanName = sanitizeTunnelName(name);
@@ -51,11 +56,13 @@ export function TunnelDialog({
     setContent(picked.content);
   };
 
-  const save = async () => {
+  const save = async (finalContent: string) => {
     setConfirmingOverwrite(false);
+    setConfirmingDns(false);
+    setContent(finalContent);
     const saved = await onSave({
       name: cleanName,
-      content,
+      content: finalContent,
       previousName: editing ? draft.name : undefined,
     });
     // Si falló, el diálogo se queda abierto con lo escrito y el error se ve
@@ -63,7 +70,13 @@ export function TunnelDialog({
     if (saved) onClose();
   };
 
-  const submit = () => (collides ? setConfirmingOverwrite(true) : save());
+  // Confirmaciones encadenadas: primero el nombre (sobrescritura), después el
+  // contenido (la línea DNS que rompe wg-quick en macOS).
+  const confirmContent = () =>
+    hasDnsLine(content) ? setConfirmingDns(true) : save(content);
+
+  const submit = () =>
+    collides ? setConfirmingOverwrite(true) : confirmContent();
 
   if (!open) return null;
 
@@ -126,8 +139,20 @@ export function TunnelDialog({
         confirmText={t("confirmOverwriteAction")}
         confirmColor={BUTTON_COLOR.ERROR}
         busy={busy}
-        onConfirm={save}
+        onConfirm={confirmContent}
         onClose={() => setConfirmingOverwrite(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmingDns}
+        title={t("confirmDnsTitle")}
+        message={t("confirmDnsText")}
+        confirmText={t("confirmDnsStrip")}
+        extraText={t("confirmDnsKeep")}
+        busy={busy}
+        onExtra={() => save(content)}
+        onConfirm={() => save(stripDnsLine(content))}
+        onClose={() => setConfirmingDns(false)}
       />
     </>
   );

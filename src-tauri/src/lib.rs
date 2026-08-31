@@ -151,6 +151,11 @@ fn find_wg_quick() -> Option<String> {
 }
 
 fn run_admin_shell(command: &str) -> Result<String, String> {
+    // AppleScript solo devuelve el stderr del comando cuando este falla, y
+    // networksetup escribe sus avisos en stdout: sin volcar stdout a stderr el
+    // motivo real del fallo no llega nunca hasta aquí. Nadie usa la salida en
+    // caso de éxito, así que no se pierde nada.
+    let command = format!("{{ {command}; }} 1>&2");
     // osascript muestra el prompt nativo de contraseña de macOS
     let escaped = command.replace('\\', "\\\\").replace('"', "\\\"");
     let script = format!(
@@ -169,6 +174,24 @@ fn run_admin_shell(command: &str) -> Result<String, String> {
         return Err("user-canceled".into());
     }
     Err(stderr)
+}
+
+// Últimos hitos que imprime `wg-quick up`: primero configura el DNS, después
+// arranca el monitor de rutas.
+const WG_DNS_MARKER: &str = "networksetup -setdnsservers";
+const WG_MONITOR_MARKER: &str = "Backgrounding route monitor";
+
+/// Un trace que llega al DNS pero no al monitor de rutas murió dentro de
+/// `set_dns`: su bucle acaba en `[[ $response == *Error* ]] && echo …`, que
+/// devuelve 1 cuando networksetup imprime una línea sin la palabra "Error", y
+/// el `set -e` de wg-quick aborta el `up` entero. Pasa con servicios de red
+/// inactivos (Thunderbolt Bridge, VPNs de terceros) y solo si el conf trae
+/// línea `DNS =`, así que el usuario puede arreglarlo él mismo.
+fn classify_wg_up_error(output: String) -> String {
+    if output.contains(WG_DNS_MARKER) && !output.contains(WG_MONITOR_MARKER) {
+        return "dns-setup-failed".into();
+    }
+    output
 }
 
 fn tunnel_info(app: &tauri::AppHandle, name: &str) -> Result<TunnelInfo, String> {
@@ -338,7 +361,8 @@ fn connect_impl(app: &tauri::AppHandle, name: &str) -> Result<TunnelInfo, String
     let install = install_conf_command(&conf_path, &name);
     run_admin_shell(&format!(
         "{install} && env PATH={TOOL_PATH} wg-quick up '{name}'"
-    ))?;
+    ))
+    .map_err(classify_wg_up_error)?;
     tunnel_info(app, &name)
 }
 
@@ -365,7 +389,7 @@ fn reconnect_impl(
     let command = format!(
         "env PATH={TOOL_PATH} wg-quick down '{previous}' || true; rm -f '{SYSTEM_CONF_DIR}/{previous}.conf'; {install} && env PATH={TOOL_PATH} wg-quick up '{name}'"
     );
-    run_admin_shell(&command)?;
+    run_admin_shell(&command).map_err(classify_wg_up_error)?;
     tunnel_info(app, &name)
 }
 
@@ -645,4 +669,44 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::classify_wg_up_error;
+
+    /// Trace real de un `up` que murió en set_dns (macOS Sonoma): llega a
+    /// configurar el DNS y nunca imprime el hito del monitor de rutas.
+    const TRACE_DNS_FAILURE: &str = "[#] wireguard-go utun[+] Interface for papa is utun4[#] wg addconf utun4 /dev/fd/63[#] ifconfig utun4 inet 10.0.0.5/32 10.0.0.5 alias[#] ifconfig utun4 up[#] route -q -n add -inet 0.0.0.0/1 -interface utun4[#] networksetup -getdnsservers Ethernet[#] networksetup -setdnsservers Thunderbolt Bridge 1.1.1.1[#] networksetup -setsearchdomains Thunderbolt Bridge Empty[#] rm -f /var/run/wireguard/utun4.sock";
+
+    const TRACE_SUCCESS: &str = "[#] wireguard-go utun[+] Interface for papa is utun4[#] networksetup -setdnsservers Wi-Fi 1.1.1.1[+] Backgrounding route monitor";
+
+    #[test]
+    fn detects_set_dns_failure() {
+        assert_eq!(
+            classify_wg_up_error(TRACE_DNS_FAILURE.to_string()),
+            "dns-setup-failed"
+        );
+    }
+
+    #[test]
+    fn leaves_a_completed_up_untouched() {
+        assert_eq!(
+            classify_wg_up_error(TRACE_SUCCESS.to_string()),
+            TRACE_SUCCESS
+        );
+    }
+
+    #[test]
+    fn leaves_unrelated_errors_untouched() {
+        // Cancelar el prompt de contraseña no toca el DNS: debe pasar intacto.
+        assert_eq!(
+            classify_wg_up_error("user-canceled".into()),
+            "user-canceled"
+        );
+        assert_eq!(
+            classify_wg_up_error("wg-quick: `utun4' already exists".into()),
+            "wg-quick: `utun4' already exists"
+        );
+    }
 }

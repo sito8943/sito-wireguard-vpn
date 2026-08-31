@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "Sito WireGuard VPN",
-        "width": 420,
-        "minWidth": 380,
+        "width": 560,
+        "minWidth": 440,
         "height": 640,
         "minHeight": 560,
         "resizable": true,

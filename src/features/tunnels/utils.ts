@@ -2,7 +2,10 @@ import { TunnelInfo } from "@/shared/models";
 import {
   BYTES_PER_KB,
   BYTES_PER_MB,
+  CONF_DNS_KEY,
   CONF_FILE_SUFFIX,
+  CONF_KEY_SEPARATOR,
+  CONF_LINE_SEPARATOR,
   ERROR_MESSAGE,
   RATE_DECIMALS,
   TUNNEL_NAME_INVALID_CHARS,
@@ -31,6 +34,23 @@ export function sanitizeTunnelName(name: string): string {
   return base
     .replace(TUNNEL_NAME_INVALID_CHARS, "")
     .slice(0, TUNNEL_NAME_MAX_LENGTH);
+}
+
+/** `DNS = 1.1.1.1` → true; ignora mayúsculas y espacios, como el parser de Rust. */
+function isDnsLine(line: string): boolean {
+  const [key] = line.split(CONF_KEY_SEPARATOR);
+  return key.trim().toLowerCase() === CONF_DNS_KEY;
+}
+
+export function hasDnsLine(content: string): boolean {
+  return content.split(CONF_LINE_SEPARATOR).some(isDnsLine);
+}
+
+export function stripDnsLine(content: string): string {
+  return content
+    .split(CONF_LINE_SEPARATOR)
+    .filter((line) => !isDnsLine(line))
+    .join(CONF_LINE_SEPARATOR);
 }
 
 export function translateError(code: string): string {

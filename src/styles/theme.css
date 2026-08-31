@@ -29,7 +29,7 @@
   --font-weight-semibold: 600;
 
   --size-textarea-min: 160px;
-  --size-dialog-width: 480px;
+  --size-dialog-width: 520px;
 
   /* @sito/ui 0.3.3 usa este token en .sito-ui-dialog pero no lo define: sin él
      la regla width queda inválida y cada diálogo se ancha según su contenido. */
@@ -43,6 +43,7 @@
   --color-border: #d9dde4;
 
   --color-primary: #2563eb;
+  --color-primary-rgb: 37 99 235;
   --color-primary-hover: #1d4ed8;
 
   --color-success: #166534;
@@ -51,6 +52,13 @@
   --color-error-surface: #fee2e2;
   --color-warning: #854d0e;
   --color-warning-surface: #fef9c3;
+
+  /* @sito/ui pinta su "primary" de rojo (#cd212a), a un tono de su "error"
+     (#cc0000): un botón de guardar y uno de borrar se veían iguales. Se
+     reapunta a la paleta de la app para que el rojo signifique solo destructivo. */
+  --sito-ui-color-primary-default: var(--color-primary);
+  --sito-ui-color-primary-hover: var(--color-primary-hover);
+  --sito-ui-color-primary-light: rgb(var(--color-primary-rgb) / 10%);
 }
 
 /* Paleta oscura: la activa ThemeProvider vía <html data-theme="dark"> siguiendo

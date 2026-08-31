@@ -31,6 +31,11 @@ export const es = {
   confirmOverwriteText: (name: string) =>
     `Ya hay un túnel llamado «${name}». Su configuración se reemplazará.`,
   confirmOverwriteAction: "Reemplazar",
+  confirmDnsTitle: "Esta configuración fija el DNS",
+  confirmDnsText:
+    "En macOS, wg-quick falla al aplicar la línea DNS cuando el equipo tiene servicios de red inactivos (Thunderbolt Bridge, VPN de terceros) y deja el túnel sin levantar. Puedes guardarla sin esa línea.",
+  confirmDnsStrip: "Guardar sin DNS",
+  confirmDnsKeep: "Guardar igual",
   ipLabel: "IP",
   endpointLabel: "Endpoint",
   emptyTitle: "Sin túneles",
@@ -44,5 +49,7 @@ export const es = {
   errorInvalidFile: "El archivo debe tener extensión .conf.",
   errorMissingDeps: "wg-quick no está instalado.",
   errorTunnelNotFound: "No se encontró la configuración de ese túnel.",
+  errorDnsSetupFailed:
+    "WireGuard configuró el túnel pero falló al aplicar el DNS del sistema, un fallo conocido de wg-quick en macOS. Edita el túnel y quita la línea DNS del .conf.",
   errorGeneric: "Algo salió mal:",
 } as const;

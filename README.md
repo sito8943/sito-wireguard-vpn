@@ -46,6 +46,24 @@ brew install wireguard-tools
 4. El lápiz de cada tarjeta **edita** el túnel (nombre y `.conf`); si estaba conectado se reconecta solo con un único prompt de contraseña.
 5. El estado se refresca solo cada 5 segundos.
 
+## Problema conocido: la línea `DNS` del `.conf`
+
+`wg-quick` 1.0.20260223 aborta el `up` si el `.conf` trae `DNS = …` y algún
+servicio de red del Mac (Thunderbolt Bridge, VPN de terceros) imprime un aviso:
+el bucle de `set_dns` termina en `[[ $response == *Error* ]] && echo …`, que
+devuelve 1 cuando la línea no contiene "Error", y el `set -e` del script mata el
+proceso. El túnel se revierte, pero **el DNS que ya escribió no se restaura** —
+`del_dns` solo corre desde el monitor de rutas, que nunca llegó a arrancar.
+
+La app lo detecta (`classify_wg_up_error`) y lo explica en vez de volcar el
+trace, y avisa al importar un `.conf` con esa línea ofreciendo guardarla sin
+ella. Para devolver el DNS a su sitio a mano:
+
+```bash
+sudo networksetup -setdnsservers "Wi-Fi" Empty
+sudo networksetup -setsearchdomains "Wi-Fi" Empty
+```
+
 ## Cómo funciona
 
 - Los `.conf` importados se guardan en `~/Library/Application Support/com.sito8943.wireguard-vpn/tunnels/`.

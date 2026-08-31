@@ -17,6 +17,8 @@ export function ConfirmDialog({
   confirmText,
   confirmColor = BUTTON_COLOR.PRIMARY,
   busy = false,
+  extraText,
+  onExtra,
   onConfirm,
   onClose,
 }: ConfirmDialogPropsType) {
@@ -32,9 +34,14 @@ export function ConfirmDialog({
       <div className="body">
         <p className="message">{message}</p>
         <div className="actions">
-          <Button variant={BUTTON_VARIANT.TEXT} onClick={onClose}>
+          <Button variant={BUTTON_VARIANT.OUTLINED} onClick={onClose}>
             {t("cancel")}
           </Button>
+          {extraText && onExtra ? (
+            <Button variant={BUTTON_VARIANT.OUTLINED} onClick={onExtra}>
+              {extraText}
+            </Button>
+          ) : null}
           <Button
             color={confirmColor}
             variant={BUTTON_VARIANT.SUBMIT}
