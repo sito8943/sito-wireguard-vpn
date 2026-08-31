@@ -43,7 +43,8 @@ brew install wireguard-tools
 1. Abre la app. Si falta `wireguard-tools`, un banner te da el comando para copiar.
 2. Botón **+** → importa tu `.conf` de WireGuard (file picker o pegando el texto).
 3. **Conectar** → macOS pide tu contraseña de administrador (prompt nativo) → conectado.
-4. El estado se refresca solo cada 5 segundos.
+4. El lápiz de cada tarjeta **edita** el túnel (nombre y `.conf`); si estaba conectado se reconecta solo con un único prompt de contraseña.
+5. El estado se refresca solo cada 5 segundos.
 
 ## Cómo funciona
 
@@ -70,12 +71,12 @@ Feature-sliced con CSS plano y design tokens:
 src/
   app/                      # Composition root: routes.ts, layout/AppLayout
   shared/                   # Genérico/cross-feature
-    components/elements/    # Primitivas (Spinner)
+    components/elements/    # Primitivas (Spinner, ConfirmDialog)
     providers/ThemeProvider # Tema del SO (prefers-color-scheme → <html data-theme>)
     constants.ts            # THEME, BUTTON_COLOR/VARIANT/SIZE
   features/tunnels/         # Todo el dominio VPN
     Tunnels.tsx             # Vista principal
-    components/             # StatusBadge, TunnelCard, ImportDialog, DepsBanner
+    components/             # StatusBadge, TunnelCard, TunnelDialog, DepsBanner
     providers/VpnProvider/  # Contexto + hook useVpn
     managers/TunnelManager/ # Encapsula los invoke de Tauri
     models/ constants.ts utils.ts
@@ -93,9 +94,15 @@ src/
 | -------------------------------------- | ------------------------------------------------------------- |
 | `check_deps`                           | Busca `wg-quick` en rutas de Homebrew                         |
 | `read_conf_file`                       | Lee un `.conf` elegido con el file picker                     |
-| `list_tunnels`                         | Lista confs guardados + estado conectado                      |
+| `list_tunnels`                         | Lista confs guardados + estado conectado (un hilo por túnel)  |
+| `read_tunnel`                          | Devuelve el `.conf` guardado para el diálogo de edición       |
 | `save_tunnel` / `delete_tunnel`        | CRUD de confs (valida `[Interface]`/`PrivateKey`, nombre ≤15) |
 | `connect_tunnel` / `disconnect_tunnel` | `wg-quick up/down` con privilegios de admin                   |
+| `reconnect_tunnel`                     | `down` + reinstala el conf + `up` en un solo prompt           |
+
+Los `Err(...)` devuelven códigos estables (`invalid-config`, `invalid-tunnel-name`,
+`missing-deps`, `tunnel-not-found`, `user-canceled`) que la UI traduce en
+`features/tunnels/utils.ts`; cancelar el prompt de contraseña no se muestra como error.
 
 ## CI/CD
 
@@ -108,4 +115,5 @@ Publicar una versión: subir `version` en `package.json`, `src-tauri/tauri.conf.
 ## Seguridad
 
 - Los `.conf` contienen claves privadas: **nunca** se commitean ni se embeben en el binario; viven solo en el Application Support del usuario y en `/etc/wireguard/` (root, `600`).
-- La app pide privilegios solo al conectar/desconectar, vía el prompt nativo de macOS.
+- Al borrar o renombrar un túnel también se elimina su copia de `/etc/wireguard/` para no dejar claves privadas huérfanas (pide contraseña solo si esa copia existe).
+- La app pide privilegios solo al conectar/desconectar/borrar, vía el prompt nativo de macOS.

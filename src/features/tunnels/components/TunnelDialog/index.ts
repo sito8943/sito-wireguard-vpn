@@ -1,2 +1,6 @@
-export { ImportDialog } from "./ImportDialog";
-export type { ImportDialogPropsType, PickedConfFile } from "./types";
+export { TunnelDialog } from "./TunnelDialog";
+export type {
+  PickedConfFile,
+  TunnelDraft,
+  TunnelDialogPropsType,
+} from "./types";

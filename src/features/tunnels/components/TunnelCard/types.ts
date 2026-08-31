@@ -6,5 +6,6 @@ export interface TunnelCardPropsType {
   busy: boolean;
   onConnect: (name: string) => void;
   onDisconnect: (name: string) => void;
+  onEdit: (tunnel: TunnelInfo) => void;
   onDelete: (name: string) => void;
 }

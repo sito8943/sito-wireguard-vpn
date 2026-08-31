@@ -1,10 +1,10 @@
-.ImportDialog .body {
+.TunnelDialog .body {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-.ImportDialog .field {
+.TunnelDialog .field {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -12,8 +12,8 @@
   color: var(--color-text-muted);
 }
 
-.ImportDialog .field input,
-.ImportDialog .field textarea {
+.TunnelDialog .field input,
+.TunnelDialog .field textarea {
   border: var(--border-width-default) solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-background-app);
@@ -23,7 +23,19 @@
   font-family: var(--font-mono);
 }
 
-.ImportDialog .field textarea {
+.TunnelDialog .field textarea {
   resize: vertical;
-  min-height: var(--size-import-textarea-min);
+  min-height: var(--size-tunnel-textarea-min);
+}
+
+.TunnelDialog .hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-surface);
+  color: var(--color-warning);
+  margin: var(--space-0);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-xs);
 }

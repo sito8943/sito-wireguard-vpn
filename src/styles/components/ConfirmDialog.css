@@ -1,0 +1,17 @@
+.ConfirmDialog .body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.ConfirmDialog .message {
+  margin: var(--space-0);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.ConfirmDialog .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

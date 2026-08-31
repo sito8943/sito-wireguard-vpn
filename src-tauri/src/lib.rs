@@ -13,6 +13,10 @@ const WG_QUICK_PATHS: [&str; 3] = [
 // PATH que wg-quick necesita para encontrar wg y wireguard-go
 const TOOL_PATH: &str = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 
+// wg-quick no tolera espacios en la ruta del conf: siempre trabaja sobre una
+// copia root en este directorio.
+const SYSTEM_CONF_DIR: &str = "/etc/wireguard";
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TunnelInfo {
@@ -117,6 +121,28 @@ fn endpoint_reachable(endpoint: &str) -> bool {
         .unwrap_or(false)
 }
 
+fn system_conf_path(name: &str) -> PathBuf {
+    PathBuf::from(SYSTEM_CONF_DIR).join(format!("{name}.conf"))
+}
+
+/// Comando shell que deja el conf del túnel en /etc/wireguard con permisos 600.
+fn install_conf_command(conf_path: &str, name: &str) -> String {
+    format!(
+        "mkdir -p {SYSTEM_CONF_DIR} && cp '{conf_path}' '{SYSTEM_CONF_DIR}/{name}.conf' && chmod 600 '{SYSTEM_CONF_DIR}/{name}.conf'"
+    )
+}
+
+/// Borra la copia root del conf (contiene la PrivateKey). Solo pide contraseña
+/// si el archivo existe, así borrar un túnel nunca conectado no molesta.
+fn remove_system_conf(name: &str) -> Result<(), String> {
+    let path = system_conf_path(name);
+    if !path.exists() {
+        return Ok(());
+    }
+    run_admin_shell(&format!("rm -f '{SYSTEM_CONF_DIR}/{name}.conf'"))?;
+    Ok(())
+}
+
 fn find_wg_quick() -> Option<String> {
     WG_QUICK_PATHS
         .iter()
@@ -135,10 +161,14 @@ fn run_admin_shell(command: &str) -> Result<String, String> {
         .output()
         .map_err(|e| e.to_string())?;
     if output.status.success() {
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    } else {
-        Err(String::from_utf8_lossy(&output.stderr).to_string())
+        return Ok(String::from_utf8_lossy(&output.stdout).to_string());
     }
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    // osascript devuelve "User canceled. (-128)" cuando se cierra el prompt.
+    if stderr.contains("-128") {
+        return Err("user-canceled".into());
+    }
+    Err(stderr)
 }
 
 fn tunnel_info(app: &tauri::AppHandle, name: &str) -> Result<TunnelInfo, String> {
@@ -199,21 +229,38 @@ async fn read_conf_file(path: String) -> Result<String, String> {
     .await
 }
 
-fn list_tunnels_impl(app: &tauri::AppHandle) -> Result<Vec<TunnelInfo>, String> {
+/// Nombres de los túneles guardados, ordenados.
+fn tunnel_names(app: &tauri::AppHandle) -> Result<Vec<String>, String> {
     let dir = tunnels_dir(app)?;
-    let mut tunnels = Vec::new();
-    for entry in fs::read_dir(&dir).map_err(|e| e.to_string())?.flatten() {
-        let path = entry.path();
-        if path.extension().is_some_and(|e| e == "conf") {
-            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                if let Ok(info) = tunnel_info(app, stem) {
-                    tunnels.push(info);
-                }
+    let mut names: Vec<String> = fs::read_dir(&dir)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry.path();
+            if path.extension().is_none_or(|e| e != "conf") {
+                return None;
             }
-        }
-    }
-    tunnels.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(tunnels)
+            Some(path.file_stem()?.to_str()?.to_string())
+        })
+        .collect();
+    names.sort();
+    Ok(names)
+}
+
+fn list_tunnels_impl(app: &tauri::AppHandle) -> Result<Vec<TunnelInfo>, String> {
+    // tunnel_info hace un ping de hasta 1 s por túnel: en serie, N túneles
+    // costarían N segundos y el polling de 5 s se quedaría corto.
+    let workers: Vec<_> = tunnel_names(app)?
+        .into_iter()
+        .map(|name| {
+            let app = app.clone();
+            std::thread::spawn(move || tunnel_info(&app, &name).ok())
+        })
+        .collect();
+    Ok(workers
+        .into_iter()
+        .filter_map(|worker| worker.join().ok().flatten())
+        .collect())
 }
 
 #[tauri::command]
@@ -221,19 +268,48 @@ async fn list_tunnels(app: tauri::AppHandle) -> Result<Vec<TunnelInfo>, String> 
     blocking(move || list_tunnels_impl(&app)).await
 }
 
+/// Contenido del .conf guardado — lo usa el diálogo de edición.
+#[tauri::command]
+async fn read_tunnel(app: tauri::AppHandle, name: String) -> Result<String, String> {
+    blocking(move || {
+        let name = sanitize_name(&name)?;
+        let path = tunnels_dir(&app)?.join(format!("{name}.conf"));
+        fs::read_to_string(&path).map_err(|_| "tunnel-not-found".to_string())
+    })
+    .await
+}
+
+/// Guarda (o edita) un túnel. `previous_name` distinto = renombrado: se borra
+/// el conf anterior y su copia root para no dejar PrivateKeys huérfanas.
 #[tauri::command]
 async fn save_tunnel(
     app: tauri::AppHandle,
     name: String,
     content: String,
+    previous_name: Option<String>,
 ) -> Result<TunnelInfo, String> {
     blocking(move || {
         if !content.contains("[Interface]") || !content.contains("PrivateKey") {
             return Err("invalid-config".into());
         }
         let name = sanitize_name(&name)?;
-        let path = tunnels_dir(&app)?.join(format!("{name}.conf"));
-        fs::write(&path, content).map_err(|e| e.to_string())?;
+        let dir = tunnels_dir(&app)?;
+        let previous = previous_name.as_deref().map(sanitize_name).transpose()?;
+        let renamed = previous.as_deref().is_some_and(|prev| prev != name);
+        // Con el túnel arriba la limpieza de /etc la hace reconnect_tunnel en un
+        // único prompt de contraseña; aquí solo se toca el disco de la app.
+        let previous_connected = previous
+            .as_deref()
+            .and_then(|prev| tunnel_info(&app, prev).ok())
+            .is_some_and(|info| info.connected);
+        fs::write(dir.join(format!("{name}.conf")), content).map_err(|e| e.to_string())?;
+        if renamed {
+            let previous = previous.as_deref().unwrap_or_default();
+            let _ = fs::remove_file(dir.join(format!("{previous}.conf")));
+            if !previous_connected {
+                remove_system_conf(previous)?;
+            }
+        }
         tunnel_info(&app, &name)
     })
     .await
@@ -243,6 +319,9 @@ async fn save_tunnel(
 async fn delete_tunnel(app: tauri::AppHandle, name: String) -> Result<(), String> {
     blocking(move || {
         let name = sanitize_name(&name)?;
+        // Primero la copia root: si se cancela la contraseña no se borra nada y
+        // el túnel sigue completo en la lista.
+        remove_system_conf(&name)?;
         let path = tunnels_dir(&app)?.join(format!("{name}.conf"));
         fs::remove_file(&path).map_err(|e| e.to_string())
     })
@@ -256,9 +335,35 @@ fn connect_impl(app: &tauri::AppHandle, name: &str) -> Result<TunnelInfo, String
     }
     let conf = tunnels_dir(app)?.join(format!("{name}.conf"));
     let conf_path = conf.to_string_lossy().to_string();
-    // wg-quick no tolera espacios en la ruta del conf: se copia a /etc/wireguard
+    let install = install_conf_command(&conf_path, &name);
+    run_admin_shell(&format!(
+        "{install} && env PATH={TOOL_PATH} wg-quick up '{name}'"
+    ))?;
+    tunnel_info(app, &name)
+}
+
+/// Baja `previous` (o `name`), reinstala el conf editado y vuelve a subirlo,
+/// todo en un único prompt de contraseña. Necesario tras editar: wg-quick
+/// trabaja con la copia de /etc/wireguard, que si no queda desactualizada.
+fn reconnect_impl(
+    app: &tauri::AppHandle,
+    name: &str,
+    previous_name: Option<&str>,
+) -> Result<TunnelInfo, String> {
+    let name = sanitize_name(name)?;
+    if find_wg_quick().is_none() {
+        return Err("missing-deps".into());
+    }
+    let previous = match previous_name {
+        Some(prev) => sanitize_name(prev)?,
+        None => name.clone(),
+    };
+    let conf = tunnels_dir(app)?.join(format!("{name}.conf"));
+    let conf_path = conf.to_string_lossy().to_string();
+    let install = install_conf_command(&conf_path, &name);
+    // `|| true` en el down: si la interfaz ya no estaba arriba no debe abortar.
     let command = format!(
-        "mkdir -p /etc/wireguard && cp '{conf_path}' '/etc/wireguard/{name}.conf' && chmod 600 '/etc/wireguard/{name}.conf' && env PATH={TOOL_PATH} wg-quick up '{name}'"
+        "env PATH={TOOL_PATH} wg-quick down '{previous}' || true; rm -f '{SYSTEM_CONF_DIR}/{previous}.conf'; {install} && env PATH={TOOL_PATH} wg-quick up '{name}'"
     );
     run_admin_shell(&command)?;
     tunnel_info(app, &name)
@@ -300,6 +405,15 @@ async fn disconnect_tunnel(app: tauri::AppHandle, name: String) -> Result<Tunnel
     blocking(move || disconnect_impl(&app, &name)).await
 }
 
+#[tauri::command]
+async fn reconnect_tunnel(
+    app: tauri::AppHandle,
+    name: String,
+    previous_name: Option<String>,
+) -> Result<TunnelInfo, String> {
+    blocking(move || reconnect_impl(&app, &name, previous_name.as_deref())).await
+}
+
 // ---- System tray -------------------------------------------------------
 
 const TRAY_ID: &str = "main-tray";
@@ -323,21 +437,15 @@ fn format_rate(bytes_per_sec: u64) -> String {
 
 /// Primer túnel conectado: (nombre, rx, tx, reachable).
 fn active_tunnel(app: &tauri::AppHandle) -> Option<(String, u64, u64, bool)> {
-    let dir = tunnels_dir(app).ok()?;
-    for entry in fs::read_dir(&dir).ok()?.flatten() {
-        let path = entry.path();
-        if path.extension().is_some_and(|e| e == "conf") {
-            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                if let Ok(info) = tunnel_info(app, stem) {
-                    if info.connected {
-                        return Some((
-                            info.name,
-                            info.rx_bytes.unwrap_or(0),
-                            info.tx_bytes.unwrap_or(0),
-                            info.reachable.unwrap_or(true),
-                        ));
-                    }
-                }
+    for name in tunnel_names(app).ok()? {
+        if let Ok(info) = tunnel_info(app, &name) {
+            if info.connected {
+                return Some((
+                    info.name,
+                    info.rx_bytes.unwrap_or(0),
+                    info.tx_bytes.unwrap_or(0),
+                    info.reachable.unwrap_or(true),
+                ));
             }
         }
     }
@@ -349,27 +457,19 @@ fn tunnel_states(app: &tauri::AppHandle) -> Vec<(String, bool)> {
     let Ok(dir) = tunnels_dir(app) else {
         return Vec::new();
     };
-    let Ok(entries) = fs::read_dir(&dir) else {
-        return Vec::new();
-    };
-    let mut states: Vec<(String, bool)> = entries
-        .flatten()
-        .filter_map(|entry| {
-            let path = entry.path();
-            if !path.extension().is_some_and(|e| e == "conf") {
-                return None;
-            }
-            let name = path.file_stem()?.to_str()?.to_string();
-            let content = fs::read_to_string(&path).ok()?;
+    // tunnel_names ya viene ordenado; aquí no hay pings, solo ifconfig.
+    tunnel_names(app)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|name| {
+            let content = fs::read_to_string(dir.join(format!("{name}.conf"))).ok()?;
             let connected = parse_conf_field(&content, "Address")
                 .as_deref()
                 .and_then(interface_for_address)
                 .is_some();
             Some((name, connected))
         })
-        .collect();
-    states.sort();
-    states
+        .collect()
 }
 
 fn build_tray_menu(
@@ -536,10 +636,12 @@ pub fn run() {
             check_deps,
             read_conf_file,
             list_tunnels,
+            read_tunnel,
             save_tunnel,
             delete_tunnel,
             connect_tunnel,
-            disconnect_tunnel
+            disconnect_tunnel,
+            reconnect_tunnel
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

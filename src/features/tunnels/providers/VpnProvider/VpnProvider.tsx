@@ -12,6 +12,8 @@ import {
   SaveTunnelInput,
   TunnelManager,
 } from "@/features/tunnels/managers/TunnelManager";
+import { ERROR_CODE } from "@/features/tunnels/constants";
+import { translateError } from "@/features/tunnels/utils";
 import { VpnContext } from "./context";
 import { MS_PER_SECOND, STATUS_POLL_INTERVAL_MS } from "./constants";
 import { TrafficSample, VpnContextValue } from "./types";
@@ -19,6 +21,9 @@ import { TrafficSample, VpnContextValue } from "./types";
 export function VpnProvider({ children }: { children: ReactNode }) {
   const managerRef = useRef(new TunnelManager());
   const samplesRef = useRef<Record<string, TrafficSample>>({});
+  // Espejo de `tunnels` para leer el estado actual dentro de los callbacks sin
+  // recrearlos (y sin reiniciar el intervalo de polling) en cada refresh.
+  const tunnelsRef = useRef<TunnelInfo[]>([]);
   const [tunnels, setTunnels] = useState<TunnelInfo[]>([]);
   const [rates, setRates] = useState<Record<string, TunnelRate>>({});
   const [wgQuickPath, setWgQuickPath] = useState<string | null>(null);
@@ -57,10 +62,11 @@ export function VpnProvider({ children }: { children: ReactNode }) {
         };
       }
       samplesRef.current = nextSamples;
+      tunnelsRef.current = list;
       setRates(nextRates);
       setTunnels(list);
     } catch (e) {
-      setError(String(e));
+      setError(translateError(String(e)));
     }
   }, []);
 
@@ -68,7 +74,7 @@ export function VpnProvider({ children }: { children: ReactNode }) {
     try {
       setWgQuickPath(await managerRef.current.checkDeps());
     } catch (e) {
-      setError(String(e));
+      setError(translateError(String(e)));
     }
   }, []);
 
@@ -85,14 +91,18 @@ export function VpnProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const runBusy = useCallback(
-    async (name: string, action: () => Promise<TunnelInfo | void>) => {
+    async (name: string, action: () => Promise<unknown>): Promise<boolean> => {
       setBusyTunnel(name);
       setError(null);
       try {
         await action();
         await refresh();
+        return true;
       } catch (e) {
-        setError(String(e));
+        const code = String(e);
+        // Cerrar el prompt de contraseña es una decisión del usuario, no un fallo.
+        if (code !== ERROR_CODE.USER_CANCELED) setError(translateError(code));
+        return false;
       } finally {
         setBusyTunnel(null);
       }
@@ -100,9 +110,21 @@ export function VpnProvider({ children }: { children: ReactNode }) {
     [refresh],
   );
 
-  const importTunnel = useCallback(
+  const saveTunnel = useCallback(
     (input: SaveTunnelInput) =>
-      runBusy(input.name, () => managerRef.current.save(input)),
+      runBusy(input.name, async () => {
+        await managerRef.current.save(input);
+        const previous = input.previousName;
+        if (!previous) return;
+        // wg-quick sigue usando la copia vieja de /etc/wireguard: hay que bajar
+        // el túnel y volver a subirlo para que la edición surta efecto.
+        const wasConnected = tunnelsRef.current.some(
+          (tunnel) => tunnel.name === previous && tunnel.connected,
+        );
+        if (wasConnected) {
+          await managerRef.current.reconnect(input.name, previous);
+        }
+      }),
     [runBusy],
   );
 
@@ -110,6 +132,15 @@ export function VpnProvider({ children }: { children: ReactNode }) {
     (path: string) => managerRef.current.readConfFile(path),
     [],
   );
+
+  const readTunnel = useCallback(async (name: string) => {
+    try {
+      return await managerRef.current.read(name);
+    } catch (e) {
+      setError(translateError(String(e)));
+      return null;
+    }
+  }, []);
 
   const removeTunnel = useCallback(
     (name: string) => runBusy(name, () => managerRef.current.remove(name)),
@@ -138,8 +169,9 @@ export function VpnProvider({ children }: { children: ReactNode }) {
       error,
       refresh,
       recheckDeps,
-      importTunnel,
+      saveTunnel,
       readConfFile,
+      readTunnel,
       removeTunnel,
       connect,
       disconnect,
@@ -154,8 +186,9 @@ export function VpnProvider({ children }: { children: ReactNode }) {
       error,
       refresh,
       recheckDeps,
-      importTunnel,
+      saveTunnel,
       readConfFile,
+      readTunnel,
       removeTunnel,
       connect,
       disconnect,

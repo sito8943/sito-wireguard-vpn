@@ -13,13 +13,16 @@ export interface VpnContextValue {
   wgQuickPath: string | null;
   loading: boolean;
   busyTunnel: string | null;
+  /** Mensaje ya traducido, listo para pintar. */
   error: string | null;
   refresh: () => Promise<void>;
   recheckDeps: () => Promise<void>;
-  importTunnel: (input: SaveTunnelInput) => Promise<void>;
+  /** `false` si falló: el diálogo se queda abierto con lo que escribió el usuario. */
+  saveTunnel: (input: SaveTunnelInput) => Promise<boolean>;
   readConfFile: (path: string) => Promise<string>;
-  removeTunnel: (name: string) => Promise<void>;
-  connect: (name: string) => Promise<void>;
-  disconnect: (name: string) => Promise<void>;
+  readTunnel: (name: string) => Promise<string | null>;
+  removeTunnel: (name: string) => Promise<boolean>;
+  connect: (name: string) => Promise<boolean>;
+  disconnect: (name: string) => Promise<boolean>;
   clearError: () => void;
 }

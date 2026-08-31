@@ -1,19 +1,33 @@
-import { Button, IconButton, useDialog } from "@sito/ui";
+import { useState } from "react";
+import { Button, IconButton } from "@sito/ui";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faXmark } from "@fortawesome/free-solid-svg-icons";
 
 import { useVpn } from "./providers/VpnProvider";
 import { TunnelCard } from "./components/TunnelCard";
-import { ImportDialog, PickedConfFile } from "./components/ImportDialog";
+import {
+  PickedConfFile,
+  TunnelDialog,
+  TunnelDraft,
+} from "./components/TunnelDialog";
 import { DepsBanner } from "./components/DepsBanner";
+import { ConfirmDialog } from "@/shared/components/elements/ConfirmDialog";
 import { Spinner } from "@/shared/components/elements/Spinner";
 import { BUTTON_COLOR, BUTTON_VARIANT } from "@/shared/constants";
 import { t } from "@/lang";
-import { CONF_EXTENSION } from "./constants";
+import { TunnelInfo } from "./models/tunnel";
+import { CONF_EXTENSION, TUNNEL_DIALOG_MODE } from "./constants";
 import { fileStem } from "./utils";
 
 import "@/styles/views/Tunnels.css";
+
+const EMPTY_DRAFT: TunnelDraft = {
+  mode: TUNNEL_DIALOG_MODE.CREATE,
+  name: "",
+  content: "",
+  connected: false,
+};
 
 export function Tunnels() {
   const {
@@ -24,14 +38,16 @@ export function Tunnels() {
     busyTunnel,
     error,
     recheckDeps,
-    importTunnel,
+    saveTunnel,
     readConfFile,
+    readTunnel,
     removeTunnel,
     connect,
     disconnect,
     clearError,
   } = useVpn();
-  const importDialog = useDialog();
+  const [draft, setDraft] = useState<TunnelDraft | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const pickFile = async (): Promise<PickedConfFile | null> => {
     const path = await openFileDialog({
@@ -41,6 +57,23 @@ export function Tunnels() {
     if (!path) return null;
     const content = await readConfFile(path);
     return { name: fileStem(path), content };
+  };
+
+  const openEdit = async (tunnel: TunnelInfo) => {
+    const content = await readTunnel(tunnel.name);
+    if (content === null) return;
+    setDraft({
+      mode: TUNNEL_DIALOG_MODE.EDIT,
+      name: tunnel.name,
+      content,
+      connected: tunnel.connected,
+    });
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    await removeTunnel(pendingDelete);
+    setPendingDelete(null);
   };
 
   if (loading) {
@@ -59,7 +92,7 @@ export function Tunnels() {
           aria-label={t("addTunnel")}
           icon={<FontAwesomeIcon icon={faPlus} />}
           color={BUTTON_COLOR.PRIMARY}
-          onClick={importDialog.handleOpen}
+          onClick={() => setDraft(EMPTY_DRAFT)}
         />
       </header>
 
@@ -67,9 +100,7 @@ export function Tunnels() {
 
       {error ? (
         <aside className="error">
-          <p>
-            {t("errorGeneric")} {error}
-          </p>
+          <p>{error}</p>
           <IconButton
             aria-label={t("cancel")}
             icon={<FontAwesomeIcon icon={faXmark} />}
@@ -87,7 +118,7 @@ export function Tunnels() {
           <Button
             color={BUTTON_COLOR.PRIMARY}
             variant={BUTTON_VARIANT.SUBMIT}
-            onClick={importDialog.handleOpen}
+            onClick={() => setDraft(EMPTY_DRAFT)}
           >
             <FontAwesomeIcon icon={faPlus} /> {t("addTunnel")}
           </Button>
@@ -102,21 +133,35 @@ export function Tunnels() {
               busy={busyTunnel === tunnel.name}
               onConnect={connect}
               onDisconnect={disconnect}
-              onDelete={removeTunnel}
+              onEdit={openEdit}
+              onDelete={setPendingDelete}
             />
           ))}
         </div>
       )}
 
-      {importDialog.open ? (
-        <ImportDialog
-          open={importDialog.open}
-          onClose={importDialog.handleClose}
+      {draft ? (
+        <TunnelDialog
+          open
+          draft={draft}
+          existingNames={tunnels.map((tunnel) => tunnel.name)}
           busy={busyTunnel !== null}
-          onSave={(name, content) => importTunnel({ name, content })}
+          onClose={() => setDraft(null)}
+          onSave={saveTunnel}
           onPickFile={pickFile}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={t("confirmDeleteTitle")}
+        message={t("confirmDeleteText", { name: pendingDelete ?? "" })}
+        confirmText={t("confirmDeleteAction")}
+        confirmColor={BUTTON_COLOR.ERROR}
+        busy={busyTunnel !== null}
+        onConfirm={confirmDelete}
+        onClose={() => setPendingDelete(null)}
+      />
     </section>
   );
 }

@@ -2,6 +2,7 @@ import { Button, IconButton } from "@sito/ui";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faTrash,
+  faPen,
   faShieldHalved,
   faArrowDown,
   faArrowUp,
@@ -21,6 +22,7 @@ export function TunnelCard({
   busy,
   onConnect,
   onDisconnect,
+  onEdit,
   onDelete,
 }: TunnelCardPropsType) {
   const toggle = () =>
@@ -71,6 +73,13 @@ export function TunnelCard({
         >
           {tunnel.connected ? t("disconnect") : t("connect")}
         </Button>
+        <IconButton
+          aria-label={t("editTunnel")}
+          icon={<FontAwesomeIcon icon={faPen} />}
+          variant={BUTTON_VARIANT.TEXT}
+          disabled={busy}
+          onClick={() => onEdit(tunnel)}
+        />
         <IconButton
           aria-label={t("deleteTunnel")}
           icon={<FontAwesomeIcon icon={faTrash} />}
